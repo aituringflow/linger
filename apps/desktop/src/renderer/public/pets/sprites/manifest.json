@@ -1,0 +1,85 @@
+{
+  "size": {
+    "width": 1586,
+    "height": 992
+  },
+  "sprites": {
+    "wing-left-spread": {
+      "file": "wing-left-spread.png",
+      "x": 0,
+      "y": 180,
+      "width": 507,
+      "height": 718
+    },
+    "wing-right-spread": {
+      "file": "wing-right-spread.png",
+      "x": 1063,
+      "y": 127,
+      "width": 523,
+      "height": 765
+    },
+    "wing-left-shoulder": {
+      "file": "wing-left-shoulder.png",
+      "x": 405,
+      "y": 339,
+      "width": 281,
+      "height": 350
+    },
+    "wing-right-shoulder": {
+      "file": "wing-right-shoulder.png",
+      "x": 851,
+      "y": 329,
+      "width": 293,
+      "height": 371
+    },
+    "torso": {
+      "file": "torso.png",
+      "x": 133,
+      "y": 135,
+      "width": 1337,
+      "height": 814
+    },
+    "head-static": {
+      "file": "head-static.png",
+      "x": 407,
+      "y": 18,
+      "width": 613,
+      "height": 594
+    },
+    "mouth-closed": {
+      "file": "mouth-closed.png",
+      "x": 413,
+      "y": 276,
+      "width": 467,
+      "height": 319
+    },
+    "mouth-open": {
+      "file": "mouth-open.png",
+      "x": 431,
+      "y": 274,
+      "width": 449,
+      "height": 321
+    },
+    "paws-front": {
+      "file": "paws-front.png",
+      "x": 444,
+      "y": 769,
+      "width": 693,
+      "height": 180
+    },
+    "head-three-quarter": {
+      "file": "head-three-quarter-v2.png",
+      "x": 435,
+      "y": 18,
+      "width": 612,
+      "height": 592
+    },
+    "head-front": {
+      "file": "head-front.png",
+      "x": 487,
+      "y": 18,
+      "width": 612,
+      "height": 592
+    }
+  }
+}

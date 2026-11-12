@@ -1,0 +1,232 @@
+/* Web 终端（xterm.js）样式。
+ * 必须自带 xterm 的核心布局规则（多层 canvas 绝对定位、字符测量元素、隐藏 textarea 等），
+ * 否则会出现“文字重叠成一排 $ / 光标错位看不见”等渲染问题（我们曾因漏掉 canvas 定位踩过）。
+ * 由 styles.css 的 @import 引入，宿主的 CSS 打包器直接展开，无需构建步骤。 */
+
+/* ── 容器与主题 ──────────────────────────────────────────── */
+/* 终端配色变量：默认深色；浅色模式（<html> 没有 data-theme="dark"）覆盖为白底深字。
+ * 取值必须与 TerminalPanel.tsx 的 DARK_THEME / LIGHT_THEME 保持一致，否则浮层与终端底会色差。 */
+.terminal-panel {
+  position: relative; /* 连接中/重连中的浮层定位基准 */
+  --term-bg: #0d1117;
+  --term-ink: #e6edf3;
+  --term-muted: #8b949e;
+  --term-line: #30363d;
+  --term-pill-bg: rgba(22, 27, 34, .96);
+  --term-scrollbar: #2f405c;
+  --term-scrollbar-hover: #3a5478;
+  --term-spin-track: rgba(139, 148, 158, .3);
+  --term-spin-head: #e6edf3;
+  background: var(--term-bg);
+  color: var(--term-ink);
+}
+:root:not([data-theme="dark"]) .terminal-panel {
+  --term-bg: #ffffff;
+  --term-ink: #1f2733;
+  --term-muted: #5b6573;
+  --term-line: #e3e8f0;
+  --term-pill-bg: rgba(255, 255, 255, .96);
+  --term-scrollbar: rgba(31, 39, 51, .18);
+  --term-scrollbar-hover: rgba(31, 39, 51, .34);
+  --term-spin-track: rgba(31, 39, 51, .15);
+  --term-spin-head: rgba(31, 39, 51, .55);
+}
+/* 内边距用 margin 而不是 padding —— 这是 FitAddon 0.10 的一个硬约束，不是随手写的：
+ *
+ *   FitAddon.proposeDimensions() 量父容器高度的方式是
+ *     getComputedStyle(parent).height  −  (xterm 元素自身的 padding-top + padding-bottom)
+ *   它减的是 **.xterm 自己的** padding，**从不减父容器的 padding**。
+ *   而全局有 `* { box-sizing: border-box }`，Chrome 的 getComputedStyle().height
+ *   返回的是 border-box 高度（不含 padding）… 准确说：border-box 时它返回的是
+ *   「border-box 减去 border」的高度，仍然包含 padding。
+ *   于是 padding 方案下 FitAddon 会按「含 padding 的高度」算行数 → 多算一行，
+ *   而 .xterm 实际只有 content-box 那么高 → 最后一行被 overflow:hidden 裁掉，
+ *   看起来就是「内容贴着底边 / 底部被切」；宽度同理会多算两三列、右侧被裁。
+ *
+ *   margin 不计入 height/width，量到的就是真实可用尺寸，行列数刚好吻合。
+ *   底部 margin 也就顺带成了内容与面板底边之间的呼吸位。
+ *   （背景色一致：.terminal-panel 的 --term-bg 与 xterm 主题 background 相同，缝隙无色差。） */
+.terminal-panel .terminal-host { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; margin: 8px 8px 14px; }
+
+/* ── 连接状态提示 ───────────────────────────────────────────
+ * 首次打开终端要现拉/重建容器再起 PTY，可能几秒；没有提示时用户只看到一块空面板。 */
+.terminal-panel .terminal-loading {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  background: var(--term-bg); color: var(--term-muted); font-size: 13px;
+}
+/* 重连浮层：水平正中 + 贴近顶部。
+ * 刻意不写进终端缓冲区（xterm 的滚动历史擦不掉），也不压住底部正在输入的那一行。 */
+.terminal-panel .terminal-loading-pill {
+  position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 20;
+  display: inline-flex; align-items: center; gap: 8px;
+  max-width: calc(100% - 24px);
+  padding: 6px 12px; border-radius: 12px;
+  border: 1px solid var(--term-line); background: var(--term-pill-bg);
+  color: var(--term-muted); font-size: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+  pointer-events: none; /* 重连期间仍可选中/滚动终端内容 */
+}
+.terminal-panel .terminal-loading-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.terminal-panel .terminal-loading-hint {
+  font-style: normal; font-size: 11px; opacity: .7;
+  max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.terminal-panel .terminal-loading-spinner {
+  width: 13px; height: 13px; flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid var(--term-spin-track);
+  border-top-color: var(--term-spin-head); /* 黑白灰系：高亮弧与正文前景同色 */
+  animation: terminal-spin .8s linear infinite;
+}
+@keyframes terminal-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .terminal-panel .terminal-loading-spinner { animation-duration: 2.4s; }
+}
+
+/* ── xterm 根元素 ─────────────────────────────────────────── */
+.terminal-panel .terminal-host .xterm {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  cursor: text;
+  user-select: none;
+  -ms-user-select: none;
+  -webkit-user-select: none;
+}
+.terminal-panel .terminal-host .xterm.focus,
+.terminal-panel .terminal-host .xterm:focus { outline: none; }
+
+/* ── 辅助层（IME / 字符测量），必须高于 canvas ───────────── */
+.terminal-panel .terminal-host .xterm-helpers { position: absolute; top: 0; z-index: 5; }
+
+/* 隐藏的输入 textarea：xterm 靠它接收键盘、粘贴与焦点 */
+.terminal-panel .terminal-host .xterm-helper-textarea {
+  padding: 0;
+  border: 0;
+  margin: 0;
+  position: absolute;
+  opacity: 0;
+  left: -9999em;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: -5;
+  white-space: nowrap;
+  overflow: hidden;
+  resize: none;
+}
+
+/* 字符宽度测量元素：缺失会导致字符宽度计算错误、文字重叠 */
+.terminal-panel .terminal-host .xterm-char-measure-element {
+  display: inline-block;
+  visibility: hidden;
+  position: absolute;
+  top: 0;
+  left: -9999em;
+  line-height: normal;
+}
+
+/* ── 视口（滚动） ──────────────────────────────────────────── */
+.terminal-panel .terminal-host .xterm-viewport {
+  background-color: transparent;
+  overflow-y: scroll;
+  cursor: default;
+  position: absolute;
+  right: 0;
+  left: 0;
+  top: 0;
+  bottom: 0;
+}
+.terminal-panel .terminal-host .xterm-viewport::-webkit-scrollbar { width: 10px; }
+.terminal-panel .terminal-host .xterm-viewport::-webkit-scrollbar-track { background-color: transparent; }
+.terminal-panel .terminal-host .xterm-viewport::-webkit-scrollbar-thumb { background-color: var(--term-scrollbar); border-radius: 5px; }
+.terminal-panel .terminal-host .xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: var(--term-scrollbar-hover); }
+
+/* ── 屏幕与多层 canvas（关键：绝对定位叠到 0,0）──────────── */
+.terminal-panel .terminal-host .xterm-screen { position: relative; }
+.terminal-panel .terminal-host .xterm-screen canvas { position: absolute; left: 0; top: 0; }
+
+/* 滚动占位 */
+.terminal-panel .terminal-host .xterm-scroll-area { visibility: hidden; }
+
+/* ── 无障碍层 ──────────────────────────────────────────────── */
+.terminal-panel .terminal-host .xterm-accessibility:not(.debug),
+.terminal-panel .terminal-host .xterm-message {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 10;
+  color: transparent;
+  pointer-events: none;
+}
+.terminal-panel .terminal-host .xterm-accessibility-tree { user-select: text; white-space: pre; }
+.terminal-panel .terminal-host .live-region {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* ── 装饰层 ────────────────────────────────────────────────── */
+.terminal-panel .terminal-host .xterm-screen .xterm-decoration-container .xterm-decoration { z-index: 6; position: absolute; }
+
+/* ── DOM 渲染器（xterm 5.x 默认就是 DOM 渲染器，不是 canvas）────────
+ * 关键：xterm 注入的规则是 `.xterm-rows { white-space: pre }`，且每个字符 span 都是
+ * `display:inline-block`。inline-block 里前导/尾随空白会被折叠：
+ *   - 提示符末尾的空格（`$ ` 的那个空格）被吃掉 → 输入的字符紧贴 `$`
+ *   - 光标 span 里只有一个空格 → 折叠后宽度为 0 → 光标完全不可见
+ * 所以这里**必须**用 pre（不能用 nowrap），也不要给行 div 另设 white-space。 */
+.terminal-panel .terminal-host .xterm-rows { position: absolute; left: 0; top: 0; white-space: pre; }
+.terminal-panel .terminal-host .xterm-rows > div { white-space: pre; }
+/* 光标颜色/宽度统一由 TerminalPanel 的 xterm 选项（theme.cursor、cursorStyle、cursorWidth）决定，
+   这里不要再写死 background-color，否则会与主题冲突。 */
+
+/* ── 官方 xterm.css 规则补全（手写副本极易漏，已两次踩坑）──────────
+ * 对照 node_modules/@xterm/xterm/css/xterm.css 逐条核对；升级 xterm 版本后必须重新 diff 一次。 */
+
+/* ★ 选区文字必须抬到选区色块之上。
+ *   xterm 把被选中的 span 打上 .xterm-decoration-top，而选区色块 .xterm-selection 是
+ *   z-index:1 的不透明块（渲染器注入）。缺这条 → 一选中，文字就被色块整块盖住看不见。 */
+.terminal-panel .terminal-host .xterm-decoration-top { position: relative; z-index: 2; }
+
+/* 装饰层（链接下划线等）与滚动概览标尺的层级 */
+.terminal-panel .terminal-host .xterm-screen .xterm-decoration-container .xterm-decoration.xterm-decoration-top-layer { z-index: 7; }
+.terminal-panel .terminal-host .xterm-decoration-overview-ruler { z-index: 8; position: absolute; top: 0; right: 0; pointer-events: none; }
+
+/* 输入法（IME）组合输入浮层：官方写死黑底白字，浅色主题下会突兀地冒出一块黑色。
+ * 交给 --term-* 变量跟随主题。 */
+.terminal-panel .terminal-host .composition-view {
+  background: var(--term-bg); color: var(--term-ink);
+  display: none; position: absolute; white-space: nowrap; z-index: 1;
+}
+.terminal-panel .terminal-host .composition-view.active { display: block; }
+
+/* dim（\e[2m）：前景透明度已由渲染器注入的颜色表达，这里防止整块被再次降透明度 */
+.terminal-panel .terminal-host .xterm-dim { opacity: 1 !important; }
+
+/* 下划线 / 上划线 / 删除线：不少 CLI 用它做提示，缺失等于不显示 */
+.terminal-panel .terminal-host .xterm-underline-1 { text-decoration: underline; }
+.terminal-panel .terminal-host .xterm-underline-2 { text-decoration: double underline; }
+.terminal-panel .terminal-host .xterm-underline-3 { text-decoration: wavy underline; }
+.terminal-panel .terminal-host .xterm-underline-4 { text-decoration: dotted underline; }
+.terminal-panel .terminal-host .xterm-underline-5 { text-decoration: dashed underline; }
+.terminal-panel .terminal-host .xterm-overline { text-decoration: overline; }
+.terminal-panel .terminal-host .xterm-overline.xterm-underline-1 { text-decoration: overline underline; }
+.terminal-panel .terminal-host .xterm-overline.xterm-underline-2 { text-decoration: overline double underline; }
+.terminal-panel .terminal-host .xterm-overline.xterm-underline-3 { text-decoration: overline wavy underline; }
+.terminal-panel .terminal-host .xterm-overline.xterm-underline-4 { text-decoration: overline dotted underline; }
+.terminal-panel .terminal-host .xterm-overline.xterm-underline-5 { text-decoration: overline dashed underline; }
+.terminal-panel .terminal-host .xterm-strikethrough { text-decoration: line-through; }
+
+/* 无障碍树的选区要透明，否则会和终端自身选区叠出两套高亮 */
+.terminal-panel .terminal-host .xterm-accessibility-tree:not(.debug) *::selection { color: transparent; }
+
+/* 鼠标事件形态：程序启用鼠标跟踪时（如 tmux）恢复默认箭头，链接悬停用手型 */
+.terminal-panel .terminal-host .xterm.enable-mouse-events { cursor: default; }
+.terminal-panel .terminal-host .xterm .xterm-cursor-pointer,
+.terminal-panel .terminal-host .xterm.xterm-cursor-pointer { cursor: pointer; }
+.terminal-panel .terminal-host .xterm.column-select.focus { cursor: crosshair; }

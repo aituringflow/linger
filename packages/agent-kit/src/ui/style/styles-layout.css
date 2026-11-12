@@ -1,0 +1,439 @@
+/* 左栏：会话列表 + 底部用户信息；默认收起（flex-basis 0 + overflow hidden + 内容 visibility hidden）。
+   收起态不画 border（否则 1px 边框在 border-box 下仍占位，悬浮态改为 absolute 时这 1px 被释放，
+   会把中栏/顶栏整体推开 1px，导致会话标题抖动）。分隔线只在展开 / 悬浮态绘制。 */
+.chat-pane-left { flex: 0 0 0; overflow: hidden; transition: flex-basis .18s ease; }
+.chat-pane-left.is-open { flex-basis: 280px; }
+.chat-pane-left:not(.is-open) .chat-sidebar-inner { visibility: hidden; }
+/* 左栏收起时：鼠标悬浮顶栏按钮，侧边栏以悬浮面板形式出现（方便切换会话）。
+   仅对可悬停设备生效（移动端点击开抽屉另有逻辑，不走此路径）。 */
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
+  .chat-pane-left.is-hover {
+    position: absolute;
+    top: 0; left: 0;
+    z-index: 300;
+    flex: 0 0 0; width: 280px; height: 100%;
+    overflow: visible;
+    border-right: none;
+    box-shadow: 4px 0 16px rgba(0,0,0,.10);
+    background: var(--sidebar-bg);
+    animation: chatSidebarHoverIn .14s ease;
+    /* 悬浮面板不参与 flex 布局，隐藏时立即消失，中间区域不产生动画 */
+    transition: none;
+  }
+  .chat-pane-left.is-hover .chat-sidebar-inner { visibility: visible; }
+  /* 悬浮面板顶部让位顶栏按钮：head 左内边距加大，logo/应用名右移，
+     使顶栏左上角按钮仍清晰可见、可点击（用于固定/收起左栏） */
+  .chat-pane-left.is-hover .chat-sidebar-head { padding-left: 56px; }
+  /* 顶栏原本整体在 z=220；悬浮时解除其堆叠上下文，让面板盖住其他顶栏控件。 */
+  .chat-pane-left.is-hover ~ .chat-main .chat-topbar { z-index: auto; }
+  /* 只把 toggle 留在面板之上，方便点击固定侧栏。 */
+  .chat-pane-left.is-hover ~ .chat-main .chat-sidebar-toggle { position: relative; z-index: 301; }
+}
+@keyframes chatSidebarHoverIn {
+  from { transform: translateX(-8px); }
+  to { transform: translateX(0); }
+}
+.chat-sidebar-inner {
+  width: 280px; height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--sidebar-bg);
+}
+/* 右栏：上半输入文件 / 下半输出产物；默认收起。拖动改宽时用 --right-w 覆盖基础宽度。
+   展开默认与中间消息区平分剩余水平宽度（50%）。
+   收起态不画左边框（border-box 下 1px 边框仍占位）：任何布局模式、任何窗口宽度下，
+   右栏未打开都不该在聊天区右侧漏出这条竖线。展开（.is-open）时恢复边框。 */
+.chat-pane-right { flex: 0 0 0; overflow: hidden; transition: flex-basis .18s ease; border-left: 1px solid var(--line); position: relative; }
+.chat-pane-right:not(.is-open) { border-left-width: 0; }
+/* 右栏宽上限 = 容器宽 − 左栏实际占用(var(--left-used)：开 280px / 关 0px) − 中栏最小宽(375)：
+   拖宽右栏可以把中间 chat 一直压到 375px 最小宽；与 JS 拖拽侧（LEFT_PANE_W / CHAT_MIN_W）同源，双保险。
+   窗口极窄时 calc 为负 → flex-basis 按 0 处理。 */
+.chat-pane-right.is-open { flex-basis: min(var(--right-w, 50%), calc(100% - var(--left-used, 280px) - 375px)); }
+.chat-pane-right.is-dragging { transition: none; }
+.chat-pane-right:not(.is-open) .chat-right-inner { visibility: hidden; }
+/* OS-style host: preserve the middle pane's frame and add side-panel width around it. */
+@property --grow-left { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --grow-right { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@media (min-width: 768px) {
+  .chat-shell.layout-grow {
+    overflow: visible;
+    transition: --grow-left .18s ease, --grow-right .18s ease;
+  }
+  .chat-shell.layout-grow:has(.chat-pane-right.is-dragging) { transition: none; }
+  .chat-shell.layout-grow .agent-content-frame {
+    flex: 0 0 auto;
+    width: calc(100% + var(--grow-left, 0px) + var(--grow-right, 0px));
+    margin-left: calc(-1 * var(--grow-left, 0px));
+  }
+  .chat-shell.layout-grow .chat-main { flex: 0 0 calc(100% - var(--grow-left, 0px) - var(--grow-right, 0px)); }
+  .chat-shell.layout-grow .chat-pane-left,
+  .chat-shell.layout-grow .chat-pane-right { transition: none; }
+  .chat-shell.layout-grow .chat-pane-left { flex-basis: var(--grow-left); }
+  .chat-shell.layout-grow .chat-pane-right { flex-basis: var(--grow-right); }
+  .chat-shell.layout-grow .chat-pane-left .chat-sidebar-inner,
+  .chat-shell.layout-grow .chat-pane-right .chat-right-inner {
+    opacity: 0; visibility: hidden;
+    transition: opacity .18s ease, visibility 0s linear .18s;
+  }
+  .chat-shell.layout-grow .chat-pane-left.is-open .chat-sidebar-inner,
+  .chat-shell.layout-grow .chat-pane-right.is-open .chat-right-inner {
+    opacity: 1; visibility: visible; transition-delay: 0s;
+  }
+  .chat-shell.layout-grow.has-preview-full .agent-content-frame { width: 100%; margin-left: 0; }
+}
+/* 产物预览全屏（toggle）：右栏占满 app 整个宽度，左栏与中栏让位隐藏；再点还原。
+   仅在右栏可见时生效（chat-shell 的 has-preview-full 类已带 rightShown 条件）。 */
+.chat-shell.has-preview-full .chat-pane-left,
+.chat-shell.has-preview-full .chat-main { display: none; }
+.chat-shell.has-preview-full .chat-pane-right {
+  flex: 1 1 100% !important; min-width: 0 !important; max-width: 100% !important;
+}
+.chat-shell.has-preview-full .chat-resizer { display: none; }
+.chat-shell.has-preview-full .chat-right-panel-toggle { display: none; }
+.chat-shell.has-preview-full .work-panel-tabs { display: none; }
+.chat-shell.has-preview-full .chat-right-inner::after { display: none; }
+.chat-shell.has-preview-full .chat-right-preview { position: relative; }
+.chat-shell.has-preview-full .chat-right-preview-head { position: absolute; top: 0; left: 0; right: 0; z-index: 5; opacity: 0; transform: translateY(-100%); }
+.chat-shell.has-preview-full .chat-pane-right.is-top-hover .chat-right-preview-head,
+.chat-shell.has-preview-full .chat-right-preview-head:has(:focus-visible) { opacity: 1; transform: none; }
+/* 中/右栏之间的拖拽 resizer：hover 时 2px 竖条 dim-in 渐显；拖动中常显 */
+.chat-resizer {
+  position: absolute; left: -5px; top: 0; bottom: 0; width: 10px;
+  cursor: col-resize; z-index: 40;
+}
+.chat-resizer::after {
+  content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px;
+  transform: translateX(-50%);
+  background: rgba(31,39,51,.28);
+  opacity: 0; transition: opacity .18s ease;
+}
+.chat-pane-right:not(.is-open) .chat-right-inner { visibility: hidden; }
+.chat-right-inner {
+  position: relative;
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--right-bg);
+}
+/* tab 行底部满宽分割线（tab 内容区本身收窄，避免压到悬浮的侧边栏 toggle） */
+.chat-right-inner::after {
+  content: ""; position: absolute; top: 46px; left: 0; right: 0; height: 1px; background: var(--line);
+  pointer-events: none;
+}
+.work-panel-tabs {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 3px;
+  min-height: 46px; padding: 6px 12px; overflow-x: auto; scrollbar-width: thin;
+  background: var(--right-bg);
+}
+/* tab 行分割线由 .chat-right-inner::after 满宽绘制（tab 内容区收窄，不与悬浮 toggle 重叠） */
+.work-panel-tab-wrap { display: flex; align-items: center; flex: 0 0 auto; max-width: 240px; border-radius: 8px; }
+/* 右栏顶部作业标签：选中态走品牌蓝（与 .cowork-agent-policy-tabs 选中态同一语言） */
+.work-panel-tab-wrap.is-active { background: var(--brand-soft); }
+.work-panel-tab.is-active { background: var(--hover-strong); }
+.work-panel-tab, .work-panel-add, .work-panel-tab-close {
+  border: 0; background: transparent; color: var(--ink-soft); cursor: pointer;
+}
+.work-panel-tab { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; min-width: 0; max-width: 205px; padding: 8px 11px; border-radius: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; color: var(--ink-faint); }
+.work-panel-tab:hover { color: var(--ink-soft); }
+.work-panel-tab-wrap .work-panel-tab { flex: 1 1 auto; }
+.work-panel-tab-icon { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; font-size: 16px; line-height: 1; }
+.work-panel-tab-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.work-panel-tab-icon img { display: block; width: 18px; height: 18px; border-radius: 4px; object-fit: cover; }
+.work-panel-tab[aria-selected="true"] { color: var(--brand); font-weight: 600; }
+.work-panel-tab-close { flex: 0 0 auto; width: 22px; height: 24px; padding: 0; border-radius: 5px; font-size: 18px; line-height: 1; }
+.work-panel-tab-close:hover, .work-panel-add:hover { background: var(--hover-strong); color: var(--ink); }
+.work-panel-tab-wrap[draggable="true"] { cursor: grab; }
+.work-panel-tab-wrap[draggable="true"]:active { cursor: grabbing; }
+.work-panel-tab-menu { position: fixed; z-index: 10000; min-width: 148px; padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 8px 28px #0003; }
+.work-panel-tab-menu button { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.work-panel-tab-menu button:hover, .work-panel-tab-menu button:focus-visible { background: var(--hover-strong); }
+.work-panel-add { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 7px; font-size: 26px; line-height: 1; }
+.work-panel-chooser { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; width: 100%; max-width: 620px; margin: 0 auto; padding: 24px 36px; box-sizing: border-box; }
+.work-panel-choice { display: flex; align-items: center; gap: 18px; width: 100%; min-height: 64px; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 15px; text-align: left; cursor: pointer; }
+.work-panel-choice:hover, .work-panel-choice:focus-visible { background: var(--hover); }
+.work-panel-choice-icon { flex: 0 0 24px; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: var(--ink-soft); }
+.work-panel-choice-icon svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.work-browser-toolbar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.work-browser-toolbar input { flex: 1 1 auto; min-width: 0; height: 34px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; outline: none; background: var(--field-bg); color: var(--ink); font: inherit; font-size: 12px; }
+.work-browser-toolbar input:focus { border-color: var(--ink-soft); }
+.work-browser-toolbar input[aria-invalid="true"] { border-color: var(--danger); }
+.work-browser-toolbar button, .work-browser-toolbar a { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); font-size: 24px; text-decoration: none; cursor: pointer; }
+.work-browser-toolbar button:disabled { opacity: .35; cursor: default; }
+.work-browser-toolbar button:not(:disabled):hover, .work-browser-toolbar a:hover { background: var(--hover); color: var(--ink); }
+.work-browser-loading { flex: 0 0 auto; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: chatSpin .7s linear infinite; }
+.work-browser-error { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--panel); color: var(--danger); font-size: 13px; text-align: center; }
+.chat-right-section { display: flex; flex-direction: column; min-height: 0; }
+.chat-right-section.is-chatmate { position: relative; }
+.chatmate-bottom-overlay { position: absolute; left: 0; right: 0; bottom: 0; height: 0; pointer-events: none; z-index: 5; }
+/* 上传文件与输出产物已拆成两个独立标签页：任一时刻只渲染其中一个 section，
+   各自占满整栏、从顶部往下排。（旧的"上产物 / 下上传文件、各占 50%"分屏规则已废弃，勿再引入 order / max-height 百分比）
+   文件项单列占满整行，长文件名允许换行，避免两列布局/省略号造成"被截断"的观感 */
+.chat-right-section--inputs { flex: 1 1 auto; min-height: 0; }
+.chat-right-section--inputs .chat-right-section-body { display: flex; flex-direction: column; gap: 4px; padding: 8px; overflow-y: auto; }
+.chat-right-section--inputs .chat-right-file { flex: 0 0 auto; width: 100%; }
+/* 输出区（产物列表 / 预览 / 浏览器 / 独白等）同样独占整栏 */
+.chat-right-section--outputs { flex: 1 1 auto; min-height: 0; }
+.chat-right-section-head {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+  height: 46px; padding: 0 12px; border-bottom: 1px solid var(--line);
+  font-size: 13px; font-weight: 700; color: var(--ink);
+}
+.chat-right-count {
+  font-size: 11px; color: var(--ink-soft); background: var(--line);
+  border-radius: 999px; padding: 1px 7px; font-weight: 600;
+}
+/* 标题 + 计数紧贴一行（计数在"输出产物"文字右边）；"打开文件夹"按钮仍靠右 */
+.chat-right-section-title {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+}
+/* 打开产物文件夹（桌面宿主）：section-head 内的小按钮，图标+文字，hover 仅变色不位移、不变边框 */
+.chat-right-folder-btn {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 8px;
+  height: 24px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: transparent; color: var(--ink-soft); font-size: 11.5px; font-weight: 600;
+  cursor: pointer; transition: color .15s ease, background .15s ease;
+}
+.chat-right-folder-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.chat-right-folder-btn:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.chat-right-folder-btn:active { color: var(--ink); }
+.chat-right-section-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px; }
+/* 输出区：列表项垂直排列并拉开间距 */
+.chat-right-section--outputs .chat-right-section-body { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+.chat-right-section--outputs.is-work-content .chat-right-section-body { gap: 0; padding: 0; }
+.cowork-monologues { width: 100%; padding: 12px 18px 32px; box-sizing: border-box; }
+.cowork-agents-manager { display: flex; flex-direction: column; color: var(--ink); }
+/* 群 AI 管理器常驻挂载容器：非群AI tab 时隐藏但不卸载，保留详情/设置状态 */
+.cowork-persist { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.cowork-persist.is-hidden { display: none; }
+/* 终端常驻挂载容器：切到其他 tab 时只隐藏、不卸载，保住 xterm 滚屏缓冲与 PTY 连接 */
+.terminal-persist { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.terminal-persist.is-hidden { display: none; }
+/* 终端占用整栏时，藏起产物 section（保持挂载，好让内部的群 AI 管理器状态不丢） */
+.chat-right-section.is-hidden { display: none; }
+/* 详情顶栏停止按钮：白色圆面缩至与相邻 18px 设置图标接近的视觉尺寸。 */
+.cowork-agents-manager .cowork-agent-stop {
+  box-sizing: border-box; width: 22px !important; height: 22px !important;
+  min-width: 22px !important; min-height: 22px !important; flex: 0 0 22px !important;
+  margin: 0; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(0, 0, 0, .08); border-radius: 50%; background: #fff; color: #111;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .28); cursor: pointer;
+}
+.cowork-agents-manager .cowork-agent-stop svg { width: 10px; height: 10px; fill: currentColor; stroke: none; }
+.cowork-agent-topbar { box-sizing: border-box; flex: 0 0 44px; height: 44px; padding: 0 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.cowork-agent-content { display: flex; flex-direction: column; gap: 12px; padding: 12px 18px 18px; }
+.cowork-agents-manager > .cowork-error { margin: 0 18px 12px; }
+.cowork-agent-topbar strong { font-size: 14px; }
+.cowork-agents-heading,.cowork-agent-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+/* 群 AI 首页顶栏：左侧标题（群 AI + 提示），右侧群级共享容器开关 */
+.cowork-agents-heading-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cowork-agents-heading-title strong { white-space: nowrap; flex: 0 0 auto; }
+.cowork-container-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; color: var(--ink-soft); font-size: 12px; cursor: pointer; }
+.cowork-container-toggle .cowork-settings-switch { flex: 0 0 auto; }
+.cowork-container-toggle .cowork-container-busy { display: inline-flex; align-items: center; }
+.cowork-visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* 详情/设置/连接编辑顶栏吸顶：独白很长滚动时，始终知道当前是哪个 AI */
+.cowork-agent-detail-head { position: sticky; top: 0; z-index: 5; background: var(--panel); }
+.cowork-agents-heading span,.cowork-agent-hint { color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.cowork-agents-list { display: flex; flex-direction: column; gap: 7px; }
+.cowork-agent-row { display: flex; align-items: center; width: 100%; gap: 10px; padding: 8px 4px; border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; }
+.cowork-agent-row:hover { background: var(--hover); }
+.cowork-agent-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.cowork-agent-row-open { display: flex; flex: 1 1 auto; align-items: center; gap: 10px; min-width: 0; padding: 0; text-align: left; font: inherit; }
+.cowork-agent-row-open strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.cowork-agent-row-chevron { flex: 0 0 24px; width: 24px; height: 28px; display: inline-flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 21px; }
+.cowork-agent-row .chatmate-switch { flex: 0 0 36px; }
+.cowork-agent-row .chatmate-switch[aria-checked="true"] { background: var(--brand); }
+.cowork-agent-row .chatmate-switch:focus-visible { outline-color: var(--brand); }
+.cowork-agent-row-main { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 1px; }
+.cowork-agent-row-main small,.cowork-connection-head small { color: var(--ink-soft); }
+.cowork-ai-sender { color: var(--ink-soft); font-size: 12px; font-weight: 600; margin: 0 0 4px; }
+.cowork-agent-add,.cowork-connection-add { display: flex; flex-direction: column; gap: 8px; padding-top: 9px; }
+.cowork-agent-add { flex-direction: row; align-items: center; height: 36px; min-height: 36px; padding-top: 0; }
+.cowork-agent-add input { min-width: 0; flex: 1; height: 32px; }
+.cowork-agents-manager .cowork-agent-add button[type="submit"] { box-sizing: border-box; height: 32px; padding: 0 10px !important; }
+.cowork-agent-add input::placeholder { font-size: 12px; }
+.cowork-agents-manager .cowork-agent-add-toggle { display: inline-grid; flex: 0 0 32px; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--ink-soft); }
+.cowork-agent-add-toggle:hover { background: var(--hover) !important; color: var(--ink) !important; }
+.cowork-agent-add-toggle svg { width: 19px; height: 19px; }
+.cowork-agents-manager input:not([type="checkbox"]),.cowork-agents-manager textarea,.cowork-agents-manager select { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 7px; padding: 8px; background: var(--right-bg); color: var(--ink); font: inherit; }
+.cowork-connection-add input::placeholder { font-size: 12px; }
+.cowork-agents-manager button:not(.cowork-agent-row-open):not(.cowork-agent-row-chevron):not(.cowork-agent-add-toggle):not(.cowork-agent-back):not(.cowork-agent-settings-btn):not(.cowork-agent-stop):not(.chatmate-switch):not([role="tab"]) { border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; background: var(--hover); color: var(--ink); cursor: pointer; }
+.cowork-agents-manager button:disabled { opacity: .55; cursor: not-allowed; }
+.cowork-agent-back { align-self: flex-start; border: 0; background: transparent; color: var(--ink-soft); cursor: pointer; }
+.cowork-agent-toolbar { min-height: 44px; }
+.cowork-agent-toolbar-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.cowork-agent-toolbar-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.cowork-agent-toolbar .cowork-agent-back { display: inline-grid; flex: 0 0 30px; place-items: center; width: 30px; height: 30px; padding: 0; border-radius: 8px; }
+.cowork-agent-toolbar .cowork-agent-back:hover { background: var(--hover); color: var(--ink); }
+.cowork-agent-toolbar .cowork-agent-back svg { width: 18px; height: 18px; }
+.cowork-agents-manager .cowork-agent-settings-btn { flex: 0 0 34px; width: 34px; height: 34px; padding: 0; border: 0; background: transparent; }
+.cowork-agents-manager .cowork-agent-settings-btn:hover { background: var(--hover); }
+.cowork-agents-manager .cowork-agent-settings-btn svg { width: 18px; height: 18px; }
+.cowork-agent-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.cowork-agent-policy-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--line); border-radius: 7px; }
+.cowork-agent-policy-tabs button { min-width: 0; padding: 7px 4px; border: 0; border-right: 1px solid var(--line); background: var(--field-soft); color: var(--ink-soft); font: inherit; font-size: 13px; line-height: 1.4; cursor: pointer; }
+.cowork-agent-policy-tabs button:last-child { border-right: 0; }
+.cowork-agent-policy-tabs button[aria-selected="true"] { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+.cowork-agent-policy-tabs button:disabled { cursor: default; }
+.cowork-prompt-plain textarea[readonly] { cursor: default; }
+/* 群AI 设置里提示词与名称同级：去掉外框，仅保留纵向间距（组合选择器压过 chatmate-prompt-block） */
+.chatmate-prompt-block.cowork-prompt-plain { margin: 0; padding: 0; border: 0; border-radius: 0; gap: 8px; }
+.cowork-agent-switch,.cowork-grant { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.cowork-agent-switch { justify-content: space-between; }
+.cowork-grant-section { display: flex; flex-direction: column; gap: 7px; margin-top: 8px; font-size: 13px; }
+.cowork-grant-list { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.cowork-connection { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.cowork-connection-head { display: flex; flex-direction: column; gap: 2px; }
+.cowork-connection-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.cowork-connection-title h3 { margin: 0; }
+.cowork-connection-list { display: flex; flex-direction: column; gap: 6px; }
+.cowork-connection-row { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.cowork-connection-row button { flex: 0 0 auto; font-size: 12px; padding: 5px 6px !important; }
+.cowork-connection-owner-avatar { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; background: var(--hover); color: var(--ink-soft); font-size: 12px; }
+.cowork-connection-owner-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.cowork-connection-owner-name { flex: 0 1 54px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.cowork-connection-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cowork-connection-info strong,.cowork-connection-info small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cowork-connection-info strong { font-size: 12px; }
+.cowork-connection-info small { color: var(--ink-soft); font-size: 11px; }
+.cowork-agent-delete { align-self: flex-start; margin-top: 14px; }
+.cowork-agents-manager h3,.cowork-agents-manager h4 { margin: 10px 0 0; font-size: 14px; }
+.cowork-agents-manager .cowork-monologues { padding: 0; }
+.cowork-agents-manager .cowork-agent-danger { color: var(--danger) !important; }
+.cowork-monologue { padding: 16px 0 22px; }
+.cowork-monologue-head { display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin-bottom: 10px; }
+.cowork-monologue-head button { margin-left: auto; border: 0; border-radius: 6px; padding: 4px 10px; background: var(--hover); color: var(--ink); cursor: pointer; }
+.cowork-monologue-tag { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 8px; border-radius: 6px; background: var(--hover); color: var(--ink-soft); font-size: 12px; font-weight: 600; }
+.cowork-monologue-head time { flex: 0 0 auto; color: var(--ink-faint); font-size: 11px; }
+/* 伴聊状态条：开启后置顶固定，不随消息列表滚动。
+   负 margin 抵消 .cowork-monologues 的 padding（12px 18px），
+   使置顶条横贯整宽、滚动时不跳动；背景不透明以遮挡下方滚动内容。
+   布局：左上角状态 + 右上角设置按钮，设置弹层含「启动伴聊」「自动回复」两个开关。 */
+.chatmate-controls {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: -12px -18px 10px;
+  padding: 12px 18px 10px;
+  background: var(--right-bg);
+  color: var(--ink-soft); font-size: 12px;
+}
+.chatmate-status { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--ink); font-size: 12.5px; font-weight: 600; }
+/* 自动回复开启时的黄色警告感叹号：hover 提示答复会直接发送、AI 答复可能不准确 */
+.chatmate-status-warn {
+  flex: 0 0 auto; align-self: center; display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--warn); color: #fff;
+  font-size: 9px; font-weight: 700; line-height: 1;
+  cursor: help; user-select: none;
+}
+.chatmate-status-warn:focus-visible { outline: 2px solid var(--warn); outline-offset: 1px; }
+/* 警告气泡改在图标下方展示（状态条 sticky 置顶，向上会溢出被裁切）；限宽可换行、左对齐避免溢出面板 */
+.chatmate-status-warn.msg-menu-tip::after {
+  bottom: auto; top: calc(100% + 9px); left: 0; transform: none;
+  white-space: normal; width: max-content; max-width: 248px; text-align: left;
+}
+.chatmate-status-warn.msg-menu-tip::before {
+  bottom: auto; top: calc(100% + 3px); left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top: 0; border-bottom-color: var(--tip-bg, #202329);
+}
+.chatmate-controls-right { position: relative; display: flex; align-items: center; }
+.chatmate-settings-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); cursor: pointer; transition: background .15s, color .15s; }
+.chatmate-settings-btn:hover { background: var(--hover); color: var(--ink); }
+.chatmate-settings-btn svg { width: 17px; height: 17px; }
+.chatmate-enhance-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); cursor: pointer; transition: background .15s, color .15s; margin-right: 2px; }
+.chatmate-enhance-btn:hover { background: var(--hover); color: var(--ink); }
+.chatmate-enhance-btn:disabled { opacity: .45; cursor: not-allowed; }
+.chatmate-enhance-btn svg { width: 17px; height: 17px; }
+/* 增强按钮位于面板顶部，默认朝上的 tooltip 会被面板边缘裁掉：改为向下显示 */
+.chatmate-enhance-btn.msg-menu-tip::after { bottom: auto; top: calc(100% + 9px); }
+.chatmate-enhance-btn.msg-menu-tip::before { bottom: auto; top: calc(100% + 3px); border-top: 0; border-bottom: 6px solid var(--tip-bg, #202329); }
+.chatmate-settings-popup { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; width: 380px; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 8px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--right-bg); box-shadow: 0 8px 24px rgba(0, 0, 0, .16); max-height: 72vh; overflow-y: auto; }
+.chatmate-settings-title { padding: 2px 8px 6px; color: var(--ink-soft); font-size: 11px; font-weight: 600; letter-spacing: .05em; }
+.chatmate-settings-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; }
+.chatmate-settings-item:hover { background: var(--hover); }
+.chatmate-settings-label { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chatmate-settings-label > span:first-child { color: var(--ink); font-size: 13px; font-weight: 600; }
+.chatmate-settings-hint { color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
+.chatmate-settings-item .chatmate-switch { flex: 0 0 auto; }
+.chatmate-switch { position: relative; width: 36px; height: 20px; padding: 0; border: 0; border-radius: 10px; background: var(--hover); cursor: pointer; transition: background .2s; }
+.chatmate-switch[aria-checked="true"] { background: var(--brand); }
+.chatmate-switch-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0003; transition: transform .2s; }
+.chatmate-switch[aria-checked="true"] .chatmate-switch-thumb { transform: translateX(16px); }
+.chatmate-switch:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+/* 自定义伴聊提示词编辑区：弹层加宽、textarea 加高，适配较长提示词 */
+.chatmate-prompt-block { margin: 6px 4px 4px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
+.chatmate-prompt-head { display: flex; flex-direction: column; gap: 3px; }
+.chatmate-prompt-title { color: var(--ink); font-size: 13px; font-weight: 600; }
+.chatmate-prompt-hint { color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
+.chatmate-prompt-textarea {
+  width: 100%; box-sizing: border-box; min-height: 220px; resize: vertical;
+  padding: 10px; border: 1px solid var(--border, var(--line)); border-radius: 8px;
+  background: var(--hover, #f5f6f8); color: var(--ink);
+  font-size: 12.5px; line-height: 1.6; font-family: inherit;
+  white-space: pre-wrap; word-break: break-word; overflow-y: auto;
+}
+.chatmate-prompt-textarea:focus { outline: 2px solid var(--brand); outline-offset: 1px; border-color: var(--brand); }
+.chatmate-prompt-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.chatmate-prompt-btn { border: 1px solid var(--border, var(--line)); border-radius: 7px; padding: 6px 14px; font-size: 12.5px; cursor: pointer; background: var(--hover, #f5f6f8); color: var(--ink); }
+.chatmate-prompt-btn:hover:not(:disabled) { background: var(--hover-strong, #e9ebef); }
+.chatmate-prompt-btn:disabled { opacity: .55; cursor: not-allowed; }
+.chatmate-prompt-btn--save { background: var(--brand); border-color: var(--brand); color: #fff; }
+.chatmate-prompt-btn--save:hover:not(:disabled) { background: var(--brand-dark); }
+.chatmate-prompt-saved { color: #3a9d6d; font-size: 11.5px; text-align: right; }
+.cowork-monologue-head .chatmate-stop { width: 28px; height: 28px; min-height: 28px; margin-left: auto; padding: 0; border: 1px solid rgba(0, 0, 0, .08); border-radius: 50%; background: #fff; color: #111; box-shadow: 0 2px 8px rgba(0, 0, 0, .28); }
+.cowork-monologue-head .chatmate-stop svg { width: 16px; height: 16px; }
+.chatmate-stopped { margin-left: auto; color: var(--ink-soft); font-size: 11px; }
+.chatmate-reasoning-text { margin-top: 12px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-soft); font-size: 13px; line-height: 1.65; }
+.chatmate-reply { margin-top: 14px; padding: 10px 12px 12px; border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--brand) 8%, transparent); }
+.chatmate-reply-text { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); font-size: 14px; line-height: 1.65; }
+.chatmate-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+.chatmate-actions button { border: 1px solid var(--border); border-radius: 7px; padding: 5px 12px; background: var(--hover); color: var(--ink); cursor: pointer; }
+.chatmate-actions button:hover { background: var(--hover-strong, var(--hover)); }
+.chat-right-empty { padding: 18px 10px; font-size: 12.5px; color: var(--ink-soft); text-align: center; }
+.chat-right-file {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px; border-radius: 8px;
+}
+.chat-right-file-main {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px;
+  text-decoration: none; color: inherit;
+}
+.chat-right-file-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.chat-right-file-name {
+  font-size: 12.5px; color: var(--ink);
+  white-space: normal; word-break: break-all; line-height: 1.35;
+}
+.chat-right-file-meta { font-size: 11px; color: var(--ink-soft); }
+.chat-right-file-dl {
+  flex: none; width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent; cursor: pointer;
+  border-radius: 6px; color: var(--ink-soft); text-decoration: none;
+  transition: background .15s ease, color .15s ease;
+}
+.chat-right-file-dl svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* 输入文件「定位到消息」按钮：与下载按钮同尺寸，hover 主题色提示可定位 */
+.chat-right-file-locate {
+  flex: none; width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent; cursor: pointer;
+  border-radius: 6px; color: var(--ink-soft); text-decoration: none;
+  transition: background .15s ease, color .15s ease;
+}
+.chat-right-file-locate svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.chat-right-file-locate:hover { background: var(--hover); color: var(--brand); }
+
+/* Web 终端面板：固定深色，模拟容器内的 shell。 */
+.terminal-panel { flex: 1 1 auto; min-height: 0; display: flex; background: var(--term-bg, #0d1117); color: var(--term-ink, #e6edf3); font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 13px; line-height: 1.5; }
+.terminal-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 14px; white-space: pre-wrap; word-break: break-word; cursor: text; user-select: text; -webkit-user-select: text; }
+.terminal-line { white-space: pre-wrap; }
+.terminal-cmd { color: #e6edf3; }
+.terminal-out { color: #c9d1d9; }
+.terminal-err { color: #ff7b72; }
+.terminal-sys { color: #8b949e; }
+.terminal-input-line { display: flex; align-items: baseline; gap: 8px; }
+.terminal-prompt { flex: 0 0 auto; color: #3fb950; user-select: none; }
+.terminal-input { flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: transparent; color: #e6edf3; font: inherit; padding: 0; }
+.terminal-input:disabled { opacity: .7; }
+.terminal-spinner { color: #8b949e; animation: terminal-pulse 1s ease-in-out infinite; }
+@keyframes terminal-pulse { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }

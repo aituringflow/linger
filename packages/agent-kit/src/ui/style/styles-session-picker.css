@@ -1,0 +1,21 @@
+.session-picker-backdrop { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; background: rgba(0, 0, 0, .38); }
+.session-picker-dialog { width: min(460px, calc(100vw - 32px)); max-height: min(620px, calc(100vh - 64px)); display: flex; flex-direction: column; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--ink); box-shadow: 0 20px 60px rgba(0, 0, 0, .28); }
+.session-picker-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.session-picker-header h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.session-picker-header button { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); cursor: pointer; }
+.session-picker-header button:hover { background: rgba(128, 128, 128, .14); color: var(--ink); }
+.session-picker-header svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.session-picker-search { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; }
+.session-picker-search:focus-within { border-color: var(--ink-soft); }
+.session-picker-search svg { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--ink-soft); stroke-width: 1.8; }
+.session-picker-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13px; }
+.session-picker-list { min-height: 72px; overflow-y: auto; margin-top: 10px; }
+.session-picker-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.session-picker-row:hover, .session-picker-row.is-active { background: rgba(128, 128, 128, .14); }
+.session-picker-row-main { flex: 1; min-width: 0; }
+.session-picker-row-title, .session-picker-row-preview { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-picker-row-title { font-size: 13px; font-weight: 600; }
+.session-picker-row-preview { margin-top: 4px; color: var(--ink-soft); font-size: 11px; }
+.session-picker-row-status { flex: none; color: var(--ink-soft); font-size: 11px; white-space: nowrap; }
+.session-picker-unread { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #21b573; }
+.session-picker-empty { padding: 26px 8px; color: var(--ink-soft); text-align: center; font-size: 12px; }

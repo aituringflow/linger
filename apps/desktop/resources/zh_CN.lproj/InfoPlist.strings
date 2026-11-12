@@ -1,0 +1,3 @@
+﻿/* 中文系统下的应用显示名：Finder、Dock、菜单栏显示「灵儿」，英文系统仍为 Linger */
+"CFBundleDisplayName" = "灵儿";
+"CFBundleName" = "灵儿";

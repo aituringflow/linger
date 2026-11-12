@@ -1,0 +1,79 @@
+name: Bug report
+description: Something in the SDK, the web app or the desktop app does not work as expected
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Before filing, please check:
+        - the [development guide](https://github.com/aituringflow/linger/blob/main/docs/development.md) troubleshooting table
+        - existing issues, including closed ones
+        Security problems must **not** be filed here — see SECURITY.md.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part is affected?
+      options:
+        - packages/agent-kit (server runtime)
+        - packages/agent-kit (React UI)
+        - apps/web
+        - apps/desktop (desktop app)
+        - docs / build tooling
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Kit version from package.json, or the commit you are on
+      placeholder: "@turingflow/agent-kit 0.3.x / commit abc1234"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node version, and whether PostgreSQL or Docker is involved
+      placeholder: "Windows 11, Node 22.23.2, npm 10.9.8"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands, clicks or API calls that trigger it
+      placeholder: |
+        1. npm install
+        2. npm run dev:web
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include the full error text, not a screenshot of it, and any relevant log lines
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Recent changes in your local tree, custom models, `.env` differences, anything unusual. Do not paste secrets.
+    validations:
+      required: false

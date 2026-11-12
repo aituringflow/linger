@@ -1,0 +1,223 @@
+/* 下载页：与首页/子页同一套纸感配色（CSS Module，App Router 下 SSR 直接生效）。 */
+
+.page {
+  --ink: #1b1b18;
+  --ink-soft: #6f6f67;
+  --ink-faint: #a3a39b;
+  --line: #e1e1db;
+  --paper: #f5f5f2;
+  --paper-deep: #efefeb;
+  --accent: #2f6b5e;
+  --mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* ── Hero ───────────────────────────────────────────────── */
+.hero {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 96px 40px 64px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.title {
+  margin: 20px 0 16px;
+  font-size: clamp(38px, 3.6vw, 48px);
+  line-height: 1.18;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.lede {
+  max-width: 580px;
+  margin: 0 0 32px;
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+
+/* ── 应用 Tab（多通道时才有） ───────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+}
+
+.tab:hover {
+  border-color: #cfcfc7;
+  color: var(--ink);
+}
+
+.tabActive {
+  border-color: var(--ink);
+  background: #fff;
+  color: var(--ink);
+}
+
+.tabVer {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+/* ── 下载卡片 ───────────────────────────────────────────── */
+.platforms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 0;
+}
+
+.card2 {
+  position: relative;
+  padding: 24px 24px 22px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.card2:hover {
+  border-color: #d6d6ce;
+  box-shadow: 0 10px 28px rgba(27, 27, 24, 0.06);
+}
+
+.current {
+  border-color: var(--ink);
+}
+
+.compact {
+  padding: 18px 20px;
+}
+
+.rec {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.picon {
+  width: 26px;
+  height: 26px;
+  color: var(--ink-soft);
+}
+
+.pname {
+  margin-top: 14px;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.phint {
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff !important;
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity 0.18s ease;
+}
+
+.btn:hover {
+  opacity: 0.86;
+}
+
+.size {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.disabled {
+  border: 1px solid var(--line);
+  background: var(--paper-deep);
+  color: var(--ink-faint) !important;
+  cursor: not-allowed;
+}
+
+.disabled:hover {
+  opacity: 1;
+}
+
+.footer {
+  border-top: 1px solid var(--line);
+  margin-top: 64px;
+}
+
+.copyright {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 40px 40px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--ink-faint);
+}
+
+@media (max-width: 720px) {
+  .hero {
+    padding-top: 64px;
+  }
+
+  .title {
+    font-size: 38px;
+  }
+
+  .card2 {
+    max-width: none;
+  }
+}

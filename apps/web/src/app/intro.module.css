@@ -1,0 +1,754 @@
+/* intro 首页：产品介绍（重点 Launcher）+ 跳转下载 / DataInsight 子页。
+   用 CSS Module 与 DataInsight 的全局样式、agent-kit 的聊天样式完全隔离。 */
+
+.page {
+  --ink: #1b1b18;
+  --ink-soft: #6f6f67;
+  --ink-faint: #a3a39b;
+  --line: #e1e1db;
+  --paper: #f5f5f2;
+  --paper-deep: #efefeb;
+  --mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page a {
+  text-decoration: none;
+}
+
+/* ── 顶部导航 ───────────────────────────────────────────── */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-bottom: 1px solid var(--line);
+  background: rgba(245, 245, 242, 0.86);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.headerInner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 40px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+}
+
+.brand img {
+  display: block;
+  width: 124px;
+  height: auto;
+}
+
+.brandTag {
+  padding-left: 14px;
+  border-left: 1px solid #d8d8d1;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  color: #9a9a92;
+  white-space: nowrap;
+}
+
+.nav {
+  margin-left: auto;
+  display: flex;
+  gap: 30px;
+  font-size: 12.5px;
+  color: #71716a;
+}
+
+.nav a {
+  transition: color 0.16s ease;
+}
+
+.nav a:hover {
+  color: var(--ink);
+}
+
+.headerCta {
+  flex: none;
+  padding: 9px 16px;
+  border: 1px solid #1b1b18;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.headerCta:hover {
+  background: #1b1b18;
+  color: #fff;
+}
+
+/* ── Hero ───────────────────────────────────────────────── */
+.hero {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 82px 40px 92px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 52px;
+  align-items: start;
+}
+
+.heroCopy {
+  min-width: 0;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(46px, 5.4vw, 74px);
+  line-height: 1.14;
+  letter-spacing: -0.062em;
+  font-weight: 600;
+  color: #141412;
+}
+
+.lede {
+  max-width: 520px;
+  margin: 28px auto 0;
+  font-size: 14.5px;
+  line-height: 1.95;
+  letter-spacing: 0.01em;
+  color: #6c6c64;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 36px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  padding: 15px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.primary {
+  background: #1b1b18;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(23, 23, 21, 0.16);
+}
+
+.primary:hover {
+  background: #000;
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(23, 23, 21, 0.2);
+}
+
+.secondary {
+  border: 1px solid #d2d2ca;
+  background: #fff;
+  color: #35352f;
+}
+
+.secondary:hover {
+  border-color: #a7a79f;
+  transform: translateY(-2px);
+}
+
+.actionIcon {
+  opacity: 0.7;
+}
+
+/* ── 首屏产品截图（文字在上，截图在下） ────────────────────── */
+.heroMedia {
+  width: 100%;
+}
+
+.heroMedia video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #deded8;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 #fff, 0 26px 64px rgba(23, 23, 21, 0.11),
+    0 2px 8px rgba(23, 23, 21, 0.05);
+}
+
+/* 板块演示视频（语音 / 主题皮肤） */
+.sectionMedia {
+  width: 100%;
+  margin-top: 40px;
+}
+
+.sectionMedia video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #deded8;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 #fff, 0 26px 64px rgba(23, 23, 21, 0.11),
+    0 2px 8px rgba(23, 23, 21, 0.05);
+}
+
+/* ── 章节通用 ───────────────────────────────────────────── */
+.section {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 92px 40px;
+  border-top: 1px solid var(--line);
+}
+
+.sectionHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.index {
+  margin: 0;
+  padding-top: 8px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: #a3a39b;
+  white-space: nowrap;
+}
+
+.sectionHeadMain {
+  min-width: 0;
+}
+
+.h2 {
+  margin: 0;
+  font-size: clamp(29px, 3.3vw, 44px);
+  line-height: 1.4;
+  letter-spacing: -0.048em;
+  font-weight: 500;
+  color: #171715;
+}
+
+.sectionLede {
+  max-width: 660px;
+  margin: 22px 0 0;
+  font-size: 14px;
+  line-height: 1.95;
+  color: #6b6b63;
+}
+
+/* 转变：左右对照 */
+.compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr);
+  gap: 0;
+  align-items: stretch;
+  margin-top: 54px;
+}
+
+.compareCol {
+  padding: 26px 26px 10px;
+  border: 1px solid #e2e2dc;
+  border-radius: 14px;
+  background: #efefeb;
+}
+
+.compareColAfter {
+  border-color: #d1d1c9;
+  background: #ffffff;
+  box-shadow: 0 18px 46px rgba(23, 23, 21, 0.07);
+}
+
+.compareLabel {
+  margin: 0 0 20px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: #8f8f87;
+}
+
+.compareColAfter .compareLabel {
+  color: #33332d;
+}
+
+.compareArrow {
+  display: grid;
+  place-items: center;
+  color: #b3b3ab;
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 0 12px;
+  padding: 15px 0 17px;
+  border-top: 1px solid rgba(23, 23, 21, 0.075);
+}
+
+.step span {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: #a5a59d;
+  padding-top: 3px;
+}
+
+.step strong {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #23231f;
+}
+
+.step em {
+  grid-column: 2;
+  margin-top: 5px;
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #6f6f67;
+}
+
+/* 能力卡片 */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 56px;
+  border-top: 1px solid var(--line);
+}
+
+.card {
+  padding: 30px 28px 34px;
+  border-right: 1px solid var(--line);
+}
+
+.card:last-child {
+  border-right: 0;
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cardTop span {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: #a3a39b;
+}
+
+.cardTop i {
+  display: block;
+  width: 16px;
+  height: 1px;
+  background: #c8c8c0;
+}
+
+.card h3 {
+  margin: 36px 0 12px;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #1c1c19;
+}
+
+.card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #6b6b63;
+}
+
+/* 示例 */
+.example {
+  margin-top: 50px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+}
+
+.exampleLabel {
+  margin: 0 0 14px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: #a3a39b;
+}
+
+.exampleAsk {
+  margin: 0 0 30px;
+  max-width: 780px;
+  font-size: 16px;
+  line-height: 1.8;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: #2a2a26;
+}
+
+.exampleFlow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.exampleFlow > div {
+  padding-top: 15px;
+  border-top: 1px solid #dcdcd6;
+}
+
+.exampleFlow span {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: #a3a39b;
+}
+
+.exampleFlow strong {
+  display: block;
+  margin: 10px 0 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #23231f;
+}
+
+.exampleFlow em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #83837b;
+}
+
+.flowArrow {
+  color: #b9b9b1;
+}
+
+/* 交互细节 */
+.details {
+  margin-top: 46px;
+  border-top: 1px solid var(--line);
+}
+
+.detailRow {
+  display: grid;
+  grid-template-columns: 54px 200px minmax(0, 1fr) 86px;
+  gap: 24px;
+  align-items: baseline;
+  padding: 23px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.detailIndex {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: #a5a59d;
+}
+
+.detailRow h3 {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: #1e1e1a;
+}
+
+.detailRow p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.85;
+  color: #6b6b63;
+}
+
+.detailTag {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: #94948c;
+  text-align: right;
+}
+
+/* ── 数据底座（深色带） ─────────────────────────────────── */
+.foundation {
+  background: #1b1b18;
+  color: #f2f2eb;
+  padding: 88px 0 92px;
+}
+
+.foundationInner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+
+.foundationIndex {
+  margin: 0 0 30px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: #85857c;
+}
+
+.foundationGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 64px;
+  align-items: start;
+}
+
+.foundationTitle {
+  margin: 0;
+  font-size: clamp(27px, 3vw, 40px);
+  line-height: 1.42;
+  letter-spacing: -0.045em;
+  font-weight: 500;
+  color: #f4f4ee;
+}
+
+.foundationBody p {
+  margin: 0 0 28px;
+  font-size: 13.5px;
+  line-height: 2;
+  color: #bdbdb4;
+}
+
+.foundationLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #55554d;
+  font-size: 12.5px;
+  color: #f2f2eb;
+  transition: border-color 0.18s ease, gap 0.18s ease;
+}
+
+.foundationLink:hover {
+  border-color: #f2f2eb;
+  gap: 20px;
+}
+
+/* ── 结尾 CTA ───────────────────────────────────────────── */
+.closing {
+  padding: 106px 40px 92px;
+  text-align: center;
+}
+
+.closing .index {
+  display: inline-block;
+  padding-top: 0;
+}
+
+.closingTitle {
+  margin: 24px 0 0;
+  font-size: clamp(36px, 5.2vw, 68px);
+  line-height: 1.16;
+  letter-spacing: -0.058em;
+  font-weight: 600;
+  color: #141412;
+}
+
+.closing .actions {
+  justify-content: center;
+  margin-top: 42px;
+}
+
+.fineprint {
+  margin: 26px 0 0;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: #9c9c94;
+}
+
+/* ── 页脚 ───────────────────────────────────────────────── */
+.footer {
+  border-top: 1px solid var(--line);
+  padding: 30px 0;
+}
+
+.copyright {
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  color: #a3a39b;
+}
+
+/* ── 响应式 ─────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 52px;
+    padding-top: 64px;
+  }
+
+  .sectionHead {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .index {
+    padding-top: 0;
+  }
+
+  .foundationGrid {
+    grid-template-columns: 1fr;
+    gap: 38px;
+  }
+}
+
+@media (max-width: 900px) {
+  .nav {
+    display: none;
+  }
+
+  .headerInner {
+    padding: 0 24px;
+    height: 64px;
+  }
+
+  .headerCta {
+    margin-left: auto;
+  }
+
+  .compare {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .compareArrow {
+    padding: 2px 0;
+    transform: rotate(90deg);
+  }
+
+  .cards {
+    grid-template-columns: 1fr;
+    border-top: 0;
+  }
+
+  .card {
+    border-top: 1px solid var(--line);
+    border-right: 0;
+    padding: 26px 0 30px;
+  }
+
+  .exampleFlow {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .flowArrow {
+    transform: rotate(90deg);
+    padding-left: 2px;
+  }
+
+  .detailRow {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 8px 14px;
+    padding: 20px 0;
+  }
+
+  .detailRow p {
+    grid-column: 2;
+  }
+
+  .detailTag {
+    grid-column: 2;
+    text-align: left;
+  }
+}
+
+@media (max-width: 680px) {
+  .hero {
+    padding: 48px 22px 64px;
+    gap: 40px;
+  }
+
+  .title {
+    font-size: clamp(38px, 10vw, 52px);
+  }
+
+  .lede {
+    font-size: 13.5px;
+  }
+
+  .brandTag {
+    display: none;
+  }
+
+  .brand img {
+    width: 106px;
+  }
+
+  .section {
+    padding: 64px 22px;
+  }
+
+  .h2 {
+    font-size: clamp(25px, 6.6vw, 32px);
+  }
+
+  .compareCol {
+    padding: 22px 18px 6px;
+  }
+
+  .exampleAsk {
+    font-size: 14px;
+  }
+
+  .foundation {
+    padding: 66px 0 70px;
+  }
+
+  .foundationInner {
+    padding: 0 22px;
+  }
+
+  .closing {
+    padding: 74px 22px 68px;
+  }
+
+  .closingTitle {
+    font-size: clamp(32px, 9vw, 44px);
+  }
+
+  .closing .actions {
+    justify-content: stretch;
+  }
+
+  .closing .actions a {
+    flex: 1;
+    justify-content: center;
+  }
+}

@@ -1,0 +1,145 @@
+/* LifeJourney 的增量样式：只补 datainsight.css 里没有的几处，源样式不改。 */
+
+.ds-scope .journey-record.future { opacity: .46; }
+.ds-scope .journey-record.future .journey-check { border-style: dashed; }
+.ds-scope .journey-record.checked .journey-record-body { color: #7d7d78; }
+.ds-scope .journey-edge-pending line:not(.edge-hit) { stroke-dasharray: 5 4; }
+.ds-scope .journey-edge-pending text { fill: #a2815b; }
+
+@media (max-width: 860px) {
+  .ds-scope .journey-layout { grid-template-columns: 1fr; }
+  .ds-scope .journey-main { border-right: 0; border-bottom: 1px solid #e7e7e5; }
+  .ds-scope .journey-stage { min-height: 0; padding: 10px 0; }
+}
+
+/* 入场动画只做“渐显”，不把初始帧写死为透明：动画被系统节流时节点仍然可见 */
+.ds-scope .journey-node.journey-appear,
+.ds-scope .journey-edge.journey-appear { animation-fill-mode: none; }
+
+/* 手工接入模式：封存 / 待接入 / 进度轴 */
+.ds-scope .journey-record.sealed {
+  border: 1px dashed #d9d9d4;
+  cursor: default;
+  color: #b4b4ae;
+  background: transparent;
+}
+.ds-scope .journey-record.sealed:hover { background: transparent; }
+.ds-scope .journey-record.available {
+  border-color: #dedede;
+  background: #fff;
+}
+.ds-scope .journey-record.available:hover { background: #f7f7f4; border-color: #cfcfcb; }
+.ds-scope .material-cta {
+  display: inline-block;
+  margin-top: 9px;
+  padding: 4px 10px;
+  border: 1px solid #d8d8d4;
+  color: #333;
+  font-size: 12px;
+  letter-spacing: .02em;
+}
+.ds-scope .journey-record.available:hover .material-cta { background: #2f2f2e; border-color: #2f2f2e; color: #fff; }
+
+.ds-scope .journey-progress { position: relative; height: 16px; margin: 14px 7px 0; }
+.ds-scope .journey-progress::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 8px;
+  height: 1px;
+  background: #d8d8d4;
+}
+.ds-scope .journey-progress-dot {
+  position: absolute;
+  top: 5px;
+  width: 7px; height: 7px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: #d4d4cf;
+  border: 1px solid #fff;
+}
+.ds-scope .journey-progress-dot.on { background: #333; }
+
+/* 主列下方的“整理”注释带 */
+.ds-scope .journey-notes { border-top: 1px solid #ececE8; background: #fff; padding: 3px 27px 6px; }
+.ds-scope .journey-note { display: flex; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px dashed #efefe9; }
+.ds-scope .journey-note > span { flex: 0 0 30px; color: #ababa5; font-size: 11.5px; letter-spacing: .1em; }
+.ds-scope .journey-note p { margin: 0; font-size: 12.5px; line-height: 1.7; color: #555; }
+.ds-scope .journey-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 11px 0 5px; }
+.ds-scope .journey-ask-tag { flex: 0 0 30px; color: #a2815b; font-size: 11.5px; letter-spacing: .1em; }
+.ds-scope .journey-ask p { margin: 0; font-size: 12.5px; line-height: 1.7; color: #333; }
+.ds-scope .journey-ask-actions { display: flex; gap: 6px; }
+.ds-scope .journey-ask-actions button { border: 1px solid #d8d8d4; background: #fff; padding: 4px 12px; font-size: 12px; color: #444; cursor: pointer; transition: background .2s ease, color .2s ease; }
+.ds-scope .journey-ask-actions button:hover { border-color: #bdbdb8; }
+.ds-scope .journey-ask-actions button.selected { background: #2f2f2e; border-color: #2f2f2e; color: #fff; }
+.ds-scope .journey-ask small { font-size: 11.5px; color: #8a8a84; }
+
+/* 待接入的卡片不用勾选框：一个加号，点一下才进来 */
+.ds-scope .journey-record.available .journey-check { width: auto; height: auto; margin-top: 0; border: 0; background: none; color: #9c9c96; font-size: 15px; line-height: 1.2; }
+.ds-scope .journey-record.sealed .journey-check { border-style: dashed; color: #c3c3bd; }
+
+.ds-scope .material-cta { text-align: center; background: #f6f6f2; border-color: #dedede; padding: 5px 10px; }
+
+/* 对比度：演示区文字不要过浅，来源行要读得清 */
+.ds-scope .journey-top p { color: #4a4a45; }
+.ds-scope .journey-badge { color: #61615a; border-color: #d5d5d0; }
+.ds-scope .journey-graph-head > div:first-child span { color: #74746c; }
+.ds-scope .journey-graph-head > div:first-child strong { color: #2b2b26; }
+.ds-scope .journey-count { color: #5b5b54; }
+.ds-scope .journey-time-title span { color: #74746c; }
+.ds-scope .journey-years { color: #70706a; }
+.ds-scope .journey-bottom { color: #5f5f58; }
+.ds-scope .journey-disclaimer { color: #77776f; }
+
+.ds-scope .journey-records-head span { color: #6c6c65; }
+.ds-scope .journey-records-head small { color: #75756e; }
+.ds-scope .journey-record-date { color: #5b5b54; }
+.ds-scope .journey-record-date em { font-style: normal; color: #2b2b26; margin-right: 5px; letter-spacing: .04em; }
+.ds-scope .journey-record-content > strong { color: #232320; }
+.ds-scope .journey-record-quote { color: #3b3b36; }
+.ds-scope .journey-record-body { color: #55554e; }
+.ds-scope .journey-record.sealed .journey-record-date { color: #97978f; }
+.ds-scope .journey-record.sealed .journey-record-quote { color: #a3a39b; }
+
+.ds-scope .journey-note > span { color: #85857d; }
+.ds-scope .journey-note p { color: #3e3e39; }
+.ds-scope .journey-ask-tag { color: #8a6740; }
+.ds-scope .journey-ask p { color: #232320; }
+.ds-scope .journey-ask small { color: #5b5b54; }
+
+/* 检视面板：悬停实体或关系，在左下角固定位置显示来源与时间，不遮挡节点 */
+.ds-scope .journey-stage { position: relative; }
+.ds-scope .journey-canvas { position: relative; display: flex; justify-content: center; width: 100%; }
+.ds-scope .journey-inspect {
+  position: absolute;
+  left: 22px;
+  bottom: 14px;
+  width: 236px;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #dcdcd7;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .06);
+  padding: 10px 12px 11px;
+  pointer-events: none;
+}
+.ds-scope .journey-inspect strong,
+.ds-scope .journey-inspect p,
+.ds-scope .journey-inspect span { display: block; }
+.ds-scope .journey-inspect strong { font-size: 12.5px; color: #232320; font-weight: 600; }
+.ds-scope .journey-inspect p { font-size: 12px; line-height: 1.6; color: #3b3b36; margin: 5px 0 6px; }
+.ds-scope .journey-inspect span { font-size: 11.5px; line-height: 1.6; color: #5f5f58; }
+
+/* model 区：卡片内标题离卡片顶部太远，收一收；第一张演示卡不动 */
+.ds-scope .model-axis { padding-top: 26px; padding-bottom: 46px; }
+.ds-scope .record-layout { padding-top: 26px; padding-bottom: 46px; }
+
+/* 纵向节奏：章节之间留白过大，统一收紧；第一节（介绍/透视）保持原样 */
+.ds-scope .model-section { padding-top: 56px; padding-bottom: 64px; }
+.ds-scope .intelligence-section { padding-top: 56px; padding-bottom: 64px; }
+.ds-scope .application-section { padding-top: 56px; padding-bottom: 64px; }
+.ds-scope .section { padding-top: 56px; padding-bottom: 64px; }
+
+/* 故事说明放到卡片底部，选完除夕才出现 */
+.ds-scope .journey-verdict { border-top: 1px solid #e7e7e5; padding: 24px 28px 26px; }
+.ds-scope .journey-verdict h3 { font-size: 19px; font-weight: 500; margin: 0 0 8px; letter-spacing: -.02em; }
+.ds-scope .journey-verdict p { font-size: 12.5px; line-height: 1.8; color: #4a4a45; margin: 0; max-width: 780px; }
+@media (max-width: 860px) { .ds-scope .journey-verdict { padding: 20px 18px 22px; } }

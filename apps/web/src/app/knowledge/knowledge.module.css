@@ -1,0 +1,594 @@
+.page {
+  min-height: 100%;
+  background: #f6f6f3;
+  color: #141412;
+  font-family: var(--font-sans, -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 头部 ───────────────────────────────────────── */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(246, 246, 243, 0.86);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid #e6e6e0;
+}
+
+.headerInner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 18px 40px;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.brand img {
+  width: 112px;
+  height: auto;
+}
+
+.brandTag {
+  font-size: 12px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: 0.06em;
+  color: #8c8c83;
+  padding-left: 12px;
+  border-left: 1px solid #dcdcd4;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.nav a {
+  color: #6b6b63;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.nav a:hover {
+  color: #141412;
+}
+
+.nav a[aria-current="page"] {
+  color: #141412;
+  font-weight: 500;
+}
+
+.headerCta {
+  flex-shrink: 0;
+  padding: 9px 16px;
+  border: 1px solid #c9c9c0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #141412;
+  text-decoration: none;
+  background: #fff;
+}
+
+/* ── 首屏 ───────────────────────────────────────── */
+.hero {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 82px 40px 66px;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 26px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: #9a9a90;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0 auto;
+  max-width: 15em;
+  font-size: clamp(46px, 5.4vw, 74px);
+  line-height: 1.14;
+  letter-spacing: -0.062em;
+  font-weight: 600;
+}
+
+.lede {
+  max-width: 560px;
+  margin: 28px auto 0;
+  font-size: 14.5px;
+  line-height: 1.95;
+  letter-spacing: 0.01em;
+  color: #6c6c64;
+}
+
+.stats {
+  margin: 40px auto 0;
+  max-width: 880px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid #e2e2da;
+  border-bottom: 1px solid #e2e2da;
+}
+
+.stats > div {
+  padding: 20px 18px 18px;
+  text-align: center;
+}
+
+.stats > div + div {
+  border-left: 1px solid #e2e2da;
+}
+
+.stats dt {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.stats dd {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  color: #7a7a70;
+}
+
+.heroMedia {
+  max-width: 1080px;
+  margin: 40px auto 0;
+}
+
+.heroMedia video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #deded8;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 #fff, 0 26px 64px rgba(23, 23, 21, 0.11), 0 2px 8px rgba(23, 23, 21, 0.05);
+}
+
+/* ── 通用section ────────────────────────────────── */
+.section {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 96px 40px;
+  border-top: 1px solid #e6e6e0;
+}
+
+.sectionHead {
+  margin-bottom: 48px;
+}
+
+.sectionHead h2 {
+  margin: 0;
+  max-width: 22em;
+  font-size: clamp(30px, 3.4vw, 46px);
+  line-height: 1.35;
+  letter-spacing: -0.045em;
+  font-weight: 600;
+}
+
+.sectionHead p {
+  margin: 20px 0 0;
+  max-width: 44em;
+  font-size: 15px;
+  line-height: 1.9;
+  color: #6b6b63;
+}
+
+/* ── 四种模态 ───────────────────────────────────── */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: #e6e6e0;
+  border: 1px solid #e6e6e0;
+}
+
+.card {
+  background: #fff;
+  padding: 30px 26px 34px;
+}
+
+.cardTag {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #a4672a;
+}
+
+.card h3 {
+  margin: 18px 0 0;
+  font-size: 21px;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+.card p {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.85;
+  color: #6b6b63;
+}
+
+/* ── 图片：入库三步 ─────────────────────────────── */
+.steps {
+  list-style: none;
+  margin: 0 0 44px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+}
+
+.steps li {
+  border-top: 1px solid #dcdcd4;
+  padding-top: 18px;
+}
+
+.stepNo {
+  display: block;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #a4a49a;
+}
+
+.steps strong {
+  display: block;
+  margin: 12px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.steps p {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.85;
+  color: #6b6b63;
+}
+
+/* ── 查询卡 ─────────────────────────────────────── */
+.queryCard,
+.videoCard {
+  margin: 0;
+  padding: 34px 38px 30px;
+  background: #fff;
+  border: 1px solid #e6e6e0;
+  border-radius: 14px;
+}
+
+.queryLabel {
+  display: inline-block;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: #a4672a;
+  margin-bottom: 10px;
+}
+
+.queryCard q,
+.videoCard q {
+  display: block;
+  font-size: 25px;
+  line-height: 1.5;
+  letter-spacing: -0.03em;
+  font-style: normal;
+  quotes: "「" "」";
+  color: #141412;
+}
+
+.hits,
+.videoHits {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 26px 0 0;
+  border-top: 1px solid #ecece6;
+}
+
+.hits li {
+  display: flex;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid #f1f1ec;
+}
+
+.hits li:last-child {
+  border-bottom: 0;
+}
+
+.thumb {
+  flex-shrink: 0;
+  width: 66px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  background: #f3f1ec;
+  border: 1px solid #e4e0d8;
+  border-radius: 6px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  color: #a8a49a;
+}
+
+.hitText {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.hitMeta {
+  margin: 6px 0 0;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: #8c8c83;
+}
+
+.footNote {
+  margin: 24px 0 0;
+  font-size: 13.5px;
+  line-height: 1.85;
+  color: #7a7a70;
+}
+
+/* ── 视频时间轴 ─────────────────────────────────── */
+.timeline {
+  display: block;
+  width: 100%;
+  margin: 30px 0 6px;
+}
+
+.tlLabel {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  fill: #8c8c83;
+}
+
+.tlCell {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10px;
+  fill: #9a9a90;
+}
+
+.tlHit {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10px;
+  fill: #fff;
+}
+
+.tlMark {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10px;
+  fill: #a4672a;
+}
+
+.videoHits li {
+  display: grid;
+  grid-template-columns: 148px 1fr;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f1f1ec;
+}
+
+.videoHits li:last-child {
+  border-bottom: 0;
+}
+
+.videoHitMain {
+  background: #fdfbf7;
+  margin: 0 -14px;
+  padding: 16px 14px;
+  border-radius: 8px;
+}
+
+.range {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12.5px;
+  color: #a4672a;
+  letter-spacing: 0.02em;
+}
+
+.videoHitMain .range {
+  font-weight: 600;
+}
+
+/* ── 召回三路 ───────────────────────────────────── */
+.routes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: #e6e6e0;
+  border: 1px solid #e6e6e0;
+}
+
+.route {
+  background: #fff;
+  padding: 30px 26px 32px;
+}
+
+.routeTag {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #a4672a;
+  text-transform: uppercase;
+}
+
+.route h3 {
+  margin: 16px 0 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.route p {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.85;
+  color: #6b6b63;
+}
+
+.routeNote {
+  margin: 26px 0 0;
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: #7a7a70;
+}
+
+/* ── 收尾 ───────────────────────────────────────── */
+.closing {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 116px 40px 108px;
+  text-align: center;
+}
+
+.closing h2 {
+  margin: 0 auto;
+  max-width: 18em;
+  font-size: clamp(34px, 4.2vw, 58px);
+  line-height: 1.2;
+  letter-spacing: -0.05em;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 44px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 26px;
+  border-radius: 10px;
+  font-size: 14.5px;
+  text-decoration: none;
+}
+
+.primary {
+  background: #141412;
+  color: #fff;
+}
+
+.secondary {
+  background: #fff;
+  color: #141412;
+  border: 1px solid #dcdcd4;
+}
+
+.fineprint {
+  margin: 24px 0 0;
+  font-size: 12.5px;
+  color: #9a9a90;
+}
+
+.footer {
+  border-top: 1px solid #e6e6e0;
+  padding: 26px 40px;
+  text-align: center;
+}
+
+.footer p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #9a9a90;
+}
+
+/* ── 响应式 ─────────────────────────────────────── */
+@media (max-width: 1000px) {
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .steps,
+  .routes {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .routes {
+    gap: 1px;
+  }
+}
+
+@media (max-width: 760px) {
+  .headerInner {
+    padding: 14px 20px;
+    gap: 14px;
+  }
+  .brandTag {
+    display: none;
+  }
+  .nav {
+    gap: 16px;
+    font-size: 12.5px;
+  }
+  .headerCta {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+  .hero {
+    padding: 78px 20px 56px;
+  }
+  .stats {
+    grid-template-columns: 1fr;
+  }
+  .stats > div + div {
+    border-left: 0;
+    border-top: 1px solid #e2e2da;
+  }
+  .section,
+  .closing {
+    padding: 68px 20px;
+  }
+  .cards {
+    grid-template-columns: 1fr;
+  }
+  .queryCard,
+  .videoCard {
+    padding: 24px 20px;
+  }
+  .hits li {
+    gap: 12px;
+  }
+  .thumb {
+    width: 48px;
+    height: 40px;
+  }
+  .videoHits li {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .queryCard q,
+  .videoCard q {
+    font-size: 19px;
+  }
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .primary,
+  .secondary {
+    justify-content: center;
+  }
+}

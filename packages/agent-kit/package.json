@@ -1,0 +1,86 @@
+{
+  "name": "@turingflow/agent-kit",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Agent 前后端一体 SDK：服务端订阅对话（CodeBuddy / hy3）+ 前端 workbuddy 风格聊天 UI。Next.js 工程后台引主入口、前台引 /ui",
+  "license": "MIT",
+  "homepage": "https://github.com/aituringflow/linger/tree/main/packages/agent-kit#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aituringflow/linger.git",
+    "directory": "packages/agent-kit"
+  },
+  "bugs": {
+    "url": "https://github.com/aituringflow/linger/issues"
+  },
+  "main": "./src/server/index.ts",
+  "types": "./src/server/index.ts",
+  "exports": {
+    ".": "./src/server/index.ts",
+    "./ui": "./src/ui/index.ts",
+    "./styles.css": "./src/ui/style/styles.css",
+    "./ota": "./src/server/ota-client.ts",
+    "./ota/server": "./src/server/ota-server.ts",
+    "./local-chat": "./src/server/local-chat-store.ts"
+  },
+  "scripts": {
+    "login": "node --import tsx src/server/auth-cli.ts login",
+    "logout": "node --import tsx src/server/auth-cli.ts logout",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.ui.json --noEmit",
+    "cli": "tsx src/server/cli.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-sdk-client": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-sdk-protocol": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-session": "0.2.2-rc.1",
+    "@napi-rs/canvas": "^0.1.100",
+    "@openai/codex-sdk": "^0.162.0",
+    "@summersmile/voice-dictation": "^0.1.0",
+    "@tencent-ai/agent-sdk": "^0.3.287",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "dockerode": "^4.0.2",
+    "jszip": "^3.10.2",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^4.10.38",
+    "pg": "^8.23.1",
+    "pinyin-pro": "^3.29.5",
+    "playwright": "^1.63.0",
+    "prismjs": "1.30.0",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "unified": "^11.0.5",
+    "web-push": "^3.6.7",
+    "ws": "^8.22.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.6.5",
+    "tsx": "^4.19.0"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.31",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/web-push": "^3.6.4",
+    "@types/ws": "^8.18.2",
+    "typescript": "^5.6.0"
+  },
+  "author": "TuringFlow",
+  "engines": {
+    "node": ">=24.9"
+  }
+}

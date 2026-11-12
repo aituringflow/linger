@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-appearance="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- img-src 必须放行本机 Agent 服务：本机文件引用（local-ref://）的预览图由
+         /file-ref?ref=… 返回，URL 落在 http://127.0.0.1:<port>，否则图片被 CSP 静默拦截。
+         img-src 另外放行 download.codebuddy.cn：模型列表里 CodeBuddy 下发的模型 Logo
+         （meta.iconUrl）就是这个域下的远程 SVG/PNG，不放行的话只会走兜底字形。
+         联系人（好友头像）、会话相关远程资源若来自 *.aotsea.com，也必须在 img-src 放行，
+         否则图片被静默拦截、只回落首字母。frame-src 放行 http/https：右侧面板内置浏览器
+         （OperationPanel 的 artifact-frame）要能加载 bing.com 等外部站点，缺失时回退到
+         default-src 'self' 会把 iframe 静默拦截。
+         文件管理组件要预览本机文件：图片走 img-src 的 local-file:，文本读取走 connect-src，
+         音视频/PDF 走 media-src 与 frame-src —— 这四处都补上 local-file:。 -->
+    <!-- connect-src 必须放行腾讯云实时语音识别：按住 Option 的实时转写由渲染进程
+         **直连** wss://asr.cloud.tencent.com（签名 URL 由 web 服务 /api/audio/session 签发）。
+         漏了这条不会报任何网络错误 —— CSP 会静默拦掉 WebSocket，只触发 error 事件，
+         表现就是「连不上腾讯云实时转写服务器」，而凭据/网络其实都是好的。
+         联系人登录 / 会话账号（gcomply.aotsea.com 等 *.aotsea.com 主机）由渲染进程
+         直连 https/wss，同样必须在 connect-src 放行，否则登录请求被静默拦掉，
+         表单只报「网络连接失败」。 -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: local-file: http://127.0.0.1:* http://localhost:* https://download.codebuddy.cn https://*.aotsea.com; media-src 'self' blob: local-file: http://127.0.0.1:*; font-src 'self' data:; connect-src 'self' local-file: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* wss://asr.cloud.tencent.com https://asr.cloud.tencent.com https://*.aotsea.com wss://*.aotsea.com; frame-src https: http: blob: data: local-file:"
+    />
+    <title>Linger</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

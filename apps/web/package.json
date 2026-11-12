@@ -1,0 +1,33 @@
+{
+  "name": "web",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "description": "Linger 的 Next.js 参考应用：对话流走 agent-kit 服务端（CodeBuddy / hy3），UI 走 agent-kit/ui",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aituringflow/linger.git",
+    "directory": "apps/web"
+  },
+  "scripts": {
+    "dev": "node --import tsx server.mjs",
+    "dev:https": "node --import tsx server.mjs --https",
+    "build": "next build",
+    "start": "node --import tsx server.mjs --production",
+    "db:migrate": "node scripts/migrate-db.mjs",
+    "login": "node --import tsx ../../packages/agent-kit/src/server/auth-cli.ts login",
+    "logout": "node --import tsx ../../packages/agent-kit/src/server/auth-cli.ts logout"
+  },
+  "dependencies": {
+    "@turingflow/agent-kit": "*",
+    "next": "16.4.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "three": "^0.186.1",
+    "tsx": "^4.19.0"
+  },
+  "author": "TuringFlow",
+  "engines": {
+    "node": ">=24.9"
+  }
+}

@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # The lockfile is intentionally not committed (see .gitignore), so `npm ci` is not available.
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck SDK
+        run: npm run typecheck -w @turingflow/agent-kit
+
+      - name: Build web app
+        run: npm run build -w web
+
+  # The desktop app's renderer typecheck has a known backlog of pre-existing
+  # errors, so it reports but does not gate the build. See CONTRIBUTING.md.
+  desktop-typecheck:
+    name: Desktop typecheck (non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck desktop app
+        run: npm run typecheck -w desktop

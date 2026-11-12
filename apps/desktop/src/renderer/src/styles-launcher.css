@@ -1,0 +1,1459 @@
+/* Launcher 只控制展示方式；AgentWindow 的会话和所有工作面板始终保持挂载。 */
+.chat-shell.is-launcher { width: 100%; height: 100%; min-height: 0; }
+.quick-input.focus-mode {
+  --sidebar-bg: var(--focus-body-bg);
+  --right-bg: var(--focus-body-bg);
+  --shell-bg: var(--focus-body-bg);
+  transition: top 200ms cubic-bezier(.2,.8,.2,1), left 200ms cubic-bezier(.2,.8,.2,1), width 200ms cubic-bezier(.2,.8,.2,1), height 200ms cubic-bezier(.2,.8,.2,1), transform 200ms cubic-bezier(.2,.8,.2,1), opacity 180ms ease, --focus-left-extension 180ms ease, --focus-right-extension 180ms ease;
+}
+@property --focus-left-extension { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --focus-right-extension { syntax: "<length>"; inherits: true; initial-value: 0px; }
+.quick-input.focus-mode > .focus-window-clip {
+  width: 100%; height: 100%; min-height: 0;
+  display: flex; flex-direction: column;
+  clip-path: inset(0 calc(-1 * var(--focus-right-extension, 0px)) 0 calc(-1 * var(--focus-left-extension, 0px)) round 20px);
+}
+.quick-input.focus-mode.window-preview > .focus-window-clip { clip-path: none; }
+.quick-input.focus-mode:has(.chat-pane-right.is-dragging) { transition: none; }
+.quick-input.focus-mode .focus-window-clip > .chat-shell { flex: 1; min-height: 0; height: auto; }
+.quick-input.focus-mode .focus-topbar-wrap { z-index: 2; }
+.quick-input.focus-mode .focus-topbar-wrap::before {
+  content: ""; position: absolute; z-index: 0; pointer-events: none;
+  top: 0; bottom: 0;
+  left: calc(-1 * var(--focus-left-extension, 0px));
+  right: calc(-1 * var(--focus-right-extension, 0px));
+  border-bottom: 1px solid var(--line);
+  border-radius: 20px 20px 0 0;
+  background: var(--focus-bar-bg);
+}
+.focus-topbar-wrap .launcher-toolbar {
+  position: relative; z-index: 1; height: 38px;
+  border-bottom: 0; border-radius: 0; background: transparent;
+  /* 这里不要再给 margin-left/width 加 transition：它们的值来自 --focus-left-extension，
+     而这个变量本身已经在 .quick-input.focus-mode 上做了 180ms 过渡（@property 注册过）。
+     两层过渡串联 = 实际到位时间翻倍（≈360ms），"按钮和标题跟不上左侧面板"就是这么来的。
+     去掉后 tooltip 位移与 .chat-pane-left 的 flex-basis .18s ease 完全同步。 */
+}
+.quick-input.focus-mode:has(.chat-shell.has-left-pane) .launcher-toolbar {
+  margin-left: calc(-1 * var(--focus-left-extension));
+  width: calc(100% + var(--focus-left-extension));
+}
+/* 侧栏开关：面板展开时把图标对应的一半填实（左按钮填左半、右按钮填右半），折叠回到空心。
+   填充块是 kit 图标里的子 path（.chat-sidebar-toggle-fill），只覆盖它自己的 fill，
+   不动 svg 上的 fill:none / stroke:currentColor。 */
+.focus-mode .chat-sidebar-toggle svg .chat-sidebar-toggle-fill { fill: currentColor; stroke: none; }
+/* 左栏展开时红绿灯按钮随窗口左移，标题的左侧留白从 68px 收到 12px。
+   这个收放若不加过渡会「先瞬跳 56px 再平滑滑动」，和 margin-left 的动画叠在一起很别扭。 */
+.focus-topbar-wrap .chat-topbar-left { transition: padding-left 180ms ease; }
+.quick-input.focus-mode .focus-window-controls { z-index: 3; }
+.chat-shell.is-launcher-preview .launcher-toolbar { display: none; }
+.launcher-toolbar { position: relative; }
+/* —— 通用窗口壳（WindowFrame）的公共零件 —— */
+/* 顶栏里的标题：红绿灯右侧，左边距由 JS 按「显示了几颗红绿灯」算好写在行内 style 上。
+   这里只管垂直居中与字号，别再写死 padding-left（否则只剩一颗关闭按钮时会空一大截）。 */
+.window-frame-header {
+  position: relative; z-index: 1;
+  height: 38px; padding-right: 12px;
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font);
+  color: var(--ink);
+  pointer-events: none;
+  /* 拖窗口要把落在标题上的 pointerdown 也算进顶栏（顶栏上挂的是原生监听，不需要额外处理） */
+}
+.window-frame-title { font-size: 13px; font-weight: 600; letter-spacing: .01em; }
+/* 标题水平居中（对话框）：顶栏是整宽的一行，红绿灯是绝对定位的，所以只要左右内距相等、
+   内容居中，文字就落在窗口的几何中线上，而不是「红绿灯右侧那一段」的中线上。 */
+.window-frame-header.is-centered { justify-content: center; padding-left: 12px; }
+/* 联系人数域：标题加粗、字号减小 */
+.contacts-window .window-frame-header { font-weight: 700; font-size: 12px; }
+/* 高度由内容撑开的窗口（对话框）：不铺满视口，最多到 Dock 上方留 12px。 */
+.quick-input.window-frame.window-fit-content {
+  height: auto;
+  max-height: calc(100vh - var(--dock-reserved-height) - 12px);
+  box-shadow: 0 28px 90px var(--shadow-color);
+}
+.quick-input.window-frame.window-fit-content > .focus-window-clip { height: auto; }
+/* 对话框的圆角裁剪：边框由公共窗口壳（.focus-mode::before）统一描，这里不再自己画线。 */
+.quick-input.window-frame.is-dialog > .focus-window-clip {
+  border-radius: 20px;
+  overflow: hidden;
+}
+/* 非 modal：点击弹窗外任意区域（含 Dock）收起。透明 backdrop 拦在弹窗（z-index 950）之下。 */
+.domain-picker-backdrop {
+  position: fixed; inset: 0;
+  z-index: 940;
+  background: transparent;
+}
+/* 对话框的入场动画：从 Dock 图标展开那套（focus-window-in）是为聊天窗设计的，
+   缩放起点 0.08 太夸张，对话框换成一点点上浮 + 淡入。 */
+.quick-input.window-frame.is-dialog.window-direct-enter {
+  transform-origin: center top;
+  animation: launcher-dialog-in 160ms cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes launcher-dialog-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quick-input.window-frame.is-dialog.window-direct-enter { animation: none; }
+}
+
+/* 选择数域：用同一个 WindowFrame 渲染，只是能力被参数裁到最小（只有关闭按钮、不可缩放）。
+   内容区自己铺底色 —— 窗口壳本身是透明的，圆角由 .focus-window-clip 的 clip-path 负责裁。
+   图标分两行：第一行系统区（联系人/设置），第二行数域区，中间一条水平分割线。 */
+.launcher-domain-apps {
+  display: flex; flex-direction: column;
+  padding: 18px;
+  background: var(--focus-body-bg);
+  color: var(--ink);
+  font-family: var(--font);
+}
+/* 两行都从左边缘排起（左对齐）。 */
+.launcher-domain-row { display: flex; justify-content: flex-start; gap: 8px; }
+.launcher-domain-sep {
+  border: none; border-top: 1px solid var(--line);
+  margin: 14px 4px;
+}
+.launcher-domain-apps button {
+  /* 每格等宽（一行内的方块大小一致），行整体左对齐：第一行 2 个、第二行 3 个，
+     宽度由内容撑的话「联系人」和「设置」会宽窄不一。 */
+  width: 96px; flex: none;
+  min-height: 102px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  border: 1px solid transparent; border-radius: 14px;
+  background: transparent; color: var(--ink);
+  font: inherit; font-size: 13px;
+  /* 图标可点击，悬停给手指光标；真正按住拖动时才切成抓取手势。 */
+  cursor: pointer; touch-action: none;
+  transition: background .15s ease, border-color .15s ease;
+}
+/* 不做「当前数域」选中态：弹窗只是一个应用列表，选中哪一项容易和"已打开"混淆。 */
+.launcher-domain-apps button:hover { border-color: var(--line); background: var(--surface-strong); }
+.launcher-domain-apps button:active { cursor: grabbing; }
+/* 图标与拖入 Dock 后的尺寸一致（50×50） */
+.launcher-domain-apps img { width: 50px; height: 50px; flex: none; object-fit: contain; filter: drop-shadow(0 5px 10px rgba(0, 0, 0, .14)); }
+
+/* ============ 系统设置窗口：左「分类列表」+ 右「内容」 ============ */
+.launcher-settings {
+  display: flex;
+  min-width: 0;
+  background: var(--focus-body-bg);
+  color: var(--ink);
+  font-family: var(--font);
+}
+/* 左侧分类栏：窄栏 + 选中项浅底，跟 macOS 设置的分栏观感一致。
+   底色取标题栏那一档（--focus-bar-bg），和右侧内容区拉开一点层次，
+   选中态的浅底才有对比（浅色皮肤里只靠 rgba 黑是看不出选中的）。 */
+.launcher-settings-nav {
+  flex: none;
+  width: 148px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 10px;
+  background: var(--focus-bar-bg);
+  border-right: 1px solid var(--line);
+}
+.launcher-settings-nav-item {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .14s ease, color .14s ease;
+}
+.launcher-settings-nav-item:hover { background: var(--surface-soft); color: var(--ink); }
+.launcher-settings-nav-item[aria-current="page"] { background: var(--hover); color: var(--ink); font-weight: 600; }
+/* 右侧内容区：高度按内容撑开，但给个下限 —— 切分类时窗口不会忽大忽小。 */
+.launcher-settings-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 560px;
+  padding: 18px 20px 20px;
+  max-height: max(120px, calc(100vh - var(--dock-reserved-height) - 62px - var(--window-offset-y, 0px)));
+  overflow-y: auto;
+}
+/* 分类里的每一块（外观面板 / 每个设置分组）之间留出比行距更大的间隔。
+   用「相邻兄弟」而不是「分组 + 分组」：算力页的第一块是自带的 .compute-providers，不是分组。 */
+.launcher-settings-body > * + * { margin-top: 24px; }
+.launcher-settings-rows .appearance-setting-row:first-child { margin-top: 10px; padding-top: 0; border-top: 0; }
+
+/* 自定义模型入口的「管理」按钮（算力分类内），与开关行同款视觉。 */
+.appearance-action-button {
+  flex: none;
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color .14s ease, border-color .14s ease;
+}
+.appearance-action-button:hover { background: var(--hover); border-color: var(--accent, var(--line)); }
+.appearance-setting-inline-note { color: var(--ink-soft); font-size: 12px; font-weight: 400; }
+
+/* ============ 自定义模型弹层（与本地 app 个人中心同一套 UI / 样式） ============ */
+.custom-model-backdrop { position: fixed; inset: 0; z-index: 10000; background: #0009; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.custom-model-panel { width: min(680px, 100%); max-height: min(850px, 90vh); display: flex; flex-direction: column; background: #202020; color: #eee; border: 1px solid #393939; border-radius: 20px; box-shadow: 0 20px 70px #0008; padding: 24px 28px; font-size: 14px; }
+.custom-model-panel header { display: flex; justify-content: space-between; align-items: center; font-size: 18px; margin-bottom: 18px; }
+.custom-model-panel button { cursor: pointer; color: inherit; background: #2b2b2b; border: 1px solid #444; border-radius: 10px; padding: 8px 14px; font: inherit; }
+.custom-model-panel header button, .custom-model-item button { border: 0; background: none; color: #aaa; padding: 4px 8px; }
+.custom-model-panel header button { font-size: 22px; }
+.custom-model-item button svg { display: block; width: 18px; height: 18px; }
+.custom-model-intro { display: flex; align-items: center; gap: 16px; justify-content: space-between; color: #aaa; line-height: 1.5; border-bottom: 1px solid #393939; padding-bottom: 20px; }
+.custom-model-intro span { overflow-wrap: anywhere; }
+.custom-model-intro button { white-space: nowrap; }
+.custom-model-list { overflow: auto; padding-top: 10px; }
+.custom-model-item { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.custom-model-icon { font-size: 20px; width: 25px; }
+.custom-model-name { font-weight: 600; }
+.custom-model-vendor { color: #999; margin-right: auto; }
+.custom-model-item button:hover, .custom-model-panel header button:hover { color: #fff; }
+.custom-model-form { overflow: auto; display: grid; gap: 18px; padding-right: 6px; }
+.custom-model-field { display: grid; gap: 8px; color: #aaa; }
+.custom-model-field input { width: 100%; box-sizing: border-box; border: 1px solid #444; border-radius: 9px; background: #222; color: #eee; padding: 10px 12px; font: inherit; outline: none; box-shadow: none; }
+.custom-model-field input:focus { border-color: #aaa; outline: none; box-shadow: none; }
+.custom-model-options { display: flex; flex-wrap: wrap; gap: 20px; }
+.custom-model-options label { display: flex; gap: 6px; align-items: center; }
+.custom-model-numbers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.custom-model-panel footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 20px; }
+.custom-model-panel footer button:last-child { background: #eee; color: #222; }
+.custom-model-error { color: #ff8585; }
+
+/* 知识库设置 · 图片识别模型下拉：原生 <select> 在 Windows 上弹出层是系统控件，
+   不读页面主题（白底浅字、对比度极低），这里改用自绘下拉，颜色全部走主题变量，
+   深/浅色自动适配。 */
+.kb-model-trigger { display: flex; align-items: center; justify-content: space-between; text-align: left; }
+.kb-model-trigger:disabled { opacity: .55; cursor: default; }
+.kb-model-menu { background: var(--focus-body-bg); }
+.kb-model-option { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kb-model-option:hover:not(:disabled) { background: var(--hover); }
+.kb-model-option.is-selected { background: var(--surface-strong); font-weight: 600; }
+
+/* 内嵌模式：去掉弹层 chrome，改用设置页主题变量（--ink / --line / --surface-strong 等），
+   与算力页其它卡片、开关行统一观感（深色皮肤下不再是一块 #202020 的「外来卡片」）。 */
+.custom-model-panel--inline { width: 100%; max-height: none; background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 0; color: var(--ink); font: inherit; font-size: 13px; }
+.custom-model-panel--inline header { font-size: 15px; margin-bottom: 10px; color: var(--ink); }
+.custom-model-panel--inline .custom-model-intro { border-bottom: 0; padding-bottom: 0; margin: 6px 0 10px; color: var(--ink-soft); }
+.custom-model-panel--inline .custom-model-intro button { white-space: nowrap; }
+.custom-model-panel--inline .custom-model-list { max-height: 280px; padding-top: 4px; }
+.custom-model-panel--inline .custom-model-item { min-height: 40px; }
+.custom-model-panel--inline .custom-model-icon { color: var(--ink-soft); }
+.custom-model-panel--inline .custom-model-name { color: var(--ink); }
+.custom-model-panel--inline .custom-model-vendor { color: var(--ink-soft); }
+/* 按钮：与 .appearance-action-button 同款（次要按钮） */
+.custom-model-panel--inline button { background: var(--surface-strong); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+.custom-model-panel--inline .custom-model-item button, .custom-model-panel--inline header button { background: none; border: 0; color: var(--ink-soft); padding: 4px 8px; }
+.custom-model-panel--inline .custom-model-item button:hover, .custom-model-panel--inline header button:hover { color: var(--ink); background: none; }
+.custom-model-panel--inline button:hover { background: var(--hover); border-color: var(--accent, var(--line)); }
+/* 主操作（保存）用强调色填充，与算力页「启动」按钮呼应 */
+.custom-model-panel--inline footer button:last-child { background: var(--accent, var(--ink)); color: var(--focus-body-bg); border-color: transparent; font-weight: 600; }
+.custom-model-panel--inline footer button:last-child:hover { background: var(--accent, var(--ink)); opacity: .9; }
+.custom-model-panel--inline .custom-model-form { gap: 14px; max-height: 320px; padding-right: 4px; color: var(--ink); }
+.custom-model-panel--inline .custom-model-field { color: var(--ink-soft); }
+.custom-model-panel--inline .custom-model-field input { background: var(--surface-strong); border: 1px solid var(--line); color: var(--ink); }
+.custom-model-panel--inline .custom-model-field input:focus { border-color: var(--accent, var(--line)); outline: none; box-shadow: none; }
+.custom-model-panel--inline .custom-model-options label { color: var(--ink-soft); }
+.custom-model-panel--inline .custom-model-error { color: #ff8585; }
+
+/* ============ 系统设置 →「算力提供商」 ============
+   两张卡片：图标 + 名称（+ 状态点）+ 操作。未登录的图标灰掉、用「点击登录」盖住；
+   已登录的图标下方是「启动开关」（开 = 已启动 / 关 = 已停止）与「登出」。 */
+.compute-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.compute-provider {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 13px;
+  background: var(--hover);
+}
+.compute-provider-mark { position: relative; width: 56px; height: 56px; }
+.compute-provider-mark svg {
+  display: block;
+  width: 56px;
+  height: 56px;
+  filter: drop-shadow(0 4px 9px rgba(0, 0, 0, .18));
+  transition: opacity .18s ease, filter .18s ease;
+}
+/* 未登录：整枚图标灰掉（保留形状，一眼知道是哪个提供商）。 */
+.compute-provider.is-offline .compute-provider-mark svg { filter: grayscale(1) drop-shadow(0 3px 7px rgba(0, 0, 0, .1)); opacity: .38; }
+/* 未接入 / 已禁用：灰但不至于像"没登录"。 */
+.compute-provider.is-inactive:not(.is-offline) .compute-provider-mark svg { opacity: .5; }
+/* 盖在图标上的登录入口（也用于"检测中…"）。 */
+.compute-provider-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 15px;
+  background: rgba(20, 20, 22, .62);
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s ease;
+}
+.compute-provider-overlay:hover:not(:disabled):not(.is-busy) { background: rgba(20, 20, 22, .76); }
+.compute-provider-overlay.is-busy { cursor: default; font-weight: 500; color: rgba(255, 255, 255, .82); }
+.compute-provider-overlay:disabled { cursor: progress; }
+.compute-provider-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.compute-provider-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-soft); opacity: .45; }
+.compute-provider-dot.is-on { background: #30d158; opacity: 1; box-shadow: 0 0 0 3px rgba(48, 209, 88, .16); }
+/* 操作行占满卡片宽度：启动开关靠左、登出靠右，中间留白（三张卡同一套对齐）。 */
+.compute-provider-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-top: 2px;
+}
+/* 启动开关：复用设置页的 .appearance-switch，旁边跟一个状态文字（已启动 / 已停止）。 */
+.compute-provider-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+}
+.compute-provider-switch { flex: none; }
+.compute-provider-state {
+  font-size: 11px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  transition: color .15s ease;
+}
+.compute-provider-state.is-on { color: var(--ink); font-weight: 600; }
+.compute-provider-action {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.compute-provider-action:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.compute-provider-action:disabled { opacity: .42; cursor: default; }
+.compute-provider-hint { font-size: 10px; color: var(--ink-soft); opacity: .75; }
+.compute-provider-error { margin: 8px 0 0; font-size: 11px; color: #d9534f; }
+
+/* 「关于」窗口：title → 旋转的 Home 图标 → 版本号，三者垂直排列且水平居中；
+   底部 TuringFlow logo + copyright 一行小字。 */
+.launcher-about-body {
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 22px 20px 16px;
+  background: var(--focus-body-bg);
+  color: var(--ink);
+  font-family: var(--font);
+}
+.launcher-about-head { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.launcher-about-appname { font-size: 15px; font-weight: 600; }
+.launcher-about-appicon { display: inline-flex; }
+/* Home 图标旋转：速度适中（7s/圈匀速，不跟随会话数），与 Dock 上的旋转同源同款。 */
+.launcher-about-appicon.is-spinning svg {
+  animation: launcher-about-spin 7s linear infinite;
+}
+@keyframes launcher-about-spin {
+  to { transform: rotate(360deg); }
+}
+.launcher-about-version { font-size: 12px; color: var(--ink-soft); }
+.launcher-about-footer {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--card-border);
+  font-size: 10px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.launcher-about-footer-logo { height: 14px; width: auto; opacity: .88; }
+
+/* ---- 关于窗口：OTA 更新区 ---- */
+.launcher-about-updates {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 4px 0;
+  border-top: 1px solid var(--card-border);
+}
+.launcher-about-update-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 28px;
+}
+.launcher-about-update-hint { font-size: 11px; color: var(--ink-soft); flex: 1; }
+.launcher-about-update-error { font-size: 11px; color: #e5534b; flex: 1; }
+.launcher-about-progress {
+  width: 100%; height: 4px; background: var(--surface-soft);
+  border-radius: 2px; overflow: hidden; margin-top: 4px;
+}
+.launcher-about-progress-bar {
+  height: 100%; background: var(--accent, var(--ink));
+  border-radius: 2px; transition: width .2s;
+}
+.launcher-about-btn {
+  padding: 5px 12px; border-radius: 7px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--card-border); background: transparent; color: var(--ink);
+  cursor: pointer; white-space: nowrap; transition: opacity .15s, background .15s;
+}
+.launcher-about-btn:hover:not(:disabled) { background: var(--hover); }
+.launcher-about-btn:disabled { opacity: .5; cursor: default; }
+.launcher-about-btn-primary {
+  border-color: transparent; background: var(--ink); color: var(--focus-body-bg);
+}
+.launcher-about-btn-primary:hover:not(:disabled) {
+  background: var(--ink); color: var(--focus-body-bg); opacity: .85;
+}
+
+@media (min-width: 768px) {
+  .quick-input.focus-mode:has(.chat-shell.layout-grow) .focus-window-controls {
+    left: calc(12px - var(--focus-left-extension, 0px));
+  }
+  .quick-input.focus-mode:has(.chat-shell.layout-grow) .focus-resize-w,
+  .quick-input.focus-mode:has(.chat-shell.layout-grow) .focus-resize-nw,
+  .quick-input.focus-mode:has(.chat-shell.layout-grow) .focus-resize-sw {
+    left: calc(-4px - var(--focus-left-extension, 0px));
+  }
+  .quick-input.focus-mode:has(.chat-shell.layout-grow) .focus-resize-e,
+  .quick-input.focus-mode:has(.chat-shell.layout-grow) .focus-resize-ne,
+  .quick-input.focus-mode:has(.chat-shell.layout-grow) .focus-resize-se {
+    right: calc(-4px - var(--focus-right-extension, 0px));
+  }
+}
+.chat-shell.is-launcher .chat-main { height: 100%; }
+
+/* ---- 右栏：打开时窗口整体长出一块，之后拖分隔线只重新分配内部空间 ----
+   kit 的 layout-grow 做法是「内容比窗口宽、靠 clip 右扩露出右栏」，于是拖分隔线也会把窗口撑宽。
+   这里把两件事拆开：
+     · 打开右栏 → 窗口宽度 += 右栏宽度（QuickInput 锁存的值），左边缘不动（left 右移一半增量
+       抵消居中偏移），chat 宽度不变，右边"长出"一块；
+     · 右栏已存在时拖分隔线 → 窗口宽度不再变化（--grow-right 不参与窗口宽度计算），
+       右栏变宽/变窄全部从中栏里拿，就是"调整 chat 和操作面板的大小"；
+     · 右栏开着时拖窗口右边框 → 同样只改右栏宽度（见 FocusWindowFrame 的 resize 分支）。
+   左栏维持原来的 grow（toolbar 向左延伸，输入框位置不动）。 */
+.chat-shell.is-launcher.layout-grow .agent-content-frame {
+  width: calc(100% + var(--grow-left, 0px));
+  margin-left: calc(-1 * var(--grow-left, 0px));
+}
+/* 产物全屏（右侧 tab 全屏按钮 / 双击 tab）：右栏内容铺满**整个 frame**，frame 尺寸不变。
+   上面这条把 agent-content-frame 撑成 100% + grow-left（左栏外扩）。全屏时左栏/中栏
+   display:none，若不重置，右栏 flex:1 1 100% 会按 agent-content-frame 的宽度算，
+   结果右栏 = 窗口宽 + 左栏宽、内容从窗口左侧外面开始 —— 视觉上右侧没占满、左边溢出。
+   这里（特异性高于上面的 .chat-shell.is-launcher.layout-grow 规则）把 frame 内容区收回
+   窗口宽 100%、margin 归零 → 右栏恰好铺满窗口左缘到右缘。 */
+.quick-input.focus-mode .chat-shell.layout-grow.has-preview-full .agent-content-frame {
+  width: 100%;
+  margin-left: 0;
+}
+/* 全屏时左栏已隐藏，但 --focus-left-extension 仍是 280px（kit 按 growLeft 写 inline），
+   clip 显示区域会向左外扩、露出窗口外的右栏溢出内容。用 :has 在 frame 层归零：
+   必须 !important（kit 的 inline style 写在本元素上），:has 让变量落在 .quick-input 作用域，
+   .focus-window-clip 的 clip-path 才能继承到。 */
+.quick-input.focus-mode:has(.chat-shell.layout-grow.has-preview-full) {
+  --focus-left-extension: 0px !important;
+}
+.chat-shell.is-launcher.layout-grow .chat-main {
+  /* 100% 是 agent-content-frame 的宽度（= 窗口宽 + grow-left），左右栏各占一份 */
+  flex: 0 0 calc(100% - var(--grow-left, 0px) - var(--grow-right, 0px));
+}
+/* 右栏挤进来之后，宽上限要自己兜住：至少给中栏留 375px（kit CHAT_MIN_W），否则窄窗口里会被压没 */
+.chat-shell.is-launcher.layout-grow .chat-pane-right {
+  flex-basis: min(var(--grow-right, 0px), calc(100% - var(--grow-left, 0px) - 375px));
+}
+/* 拖窗口右边框期间：窗口宽、右栏宽、中栏宽**全部由拖拽方直接写的 CSS 变量派生**
+   （--launcher-right-width 管窗口增量，--right-resize-width 管右栏），同一次布局算完，
+   不存在先后错位，也不经过 React 渲染。
+   原因：窗口宽度和 kit 的 --grow-right 是两条独立更新路径 —— 窗口宽度来自宿主 state，
+   --grow-right 要等 kit 再渲染一次才落到 inline style，差一帧就让中栏先宽后窄地抖。
+   用 !important 是因为要压过 kit 写在 .chat-shell 上的 inline style（拖拽中若因消息流等
+   原因重渲染，inline 会被刷回旧值）。 */
+.quick-input.focus-mode.window-resizing-right .chat-shell.layout-grow .chat-main {
+  flex: 0 0 calc(100% - var(--grow-left, 0px) - var(--right-resize-width, 0px)) !important;
+}
+.quick-input.focus-mode.window-resizing-right .chat-shell.layout-grow .chat-pane-right {
+  flex-basis: var(--right-resize-width, 0px) !important;
+}
+/* 右栏不再溢出窗口，右侧的 clip 扩展量恒为 0。
+   必须 !important：这个变量是 kit 用 inline style 写在 .quick-input 上的（rightW ?? 340）。 */
+.quick-input.focus-mode { --focus-right-extension: 0px !important; }
+/* 窗口宽/位的过渡必须与右栏宽度（kit 的 --grow-right，.18s ease）**完全同步**，
+   否则"窗口变宽"和"右栏占位"两条动画进度不一致，中栏会在过程中先窄再宽地抖一下
+   —— 展开右栏时的闪烁就是这么来的。统一成 180ms ease 后两者逐帧抵消，中栏恒定。 */
+.quick-input.focus-mode {
+  transition: top 200ms cubic-bezier(.2,.8,.2,1), left 180ms ease, width 180ms ease,
+    height 200ms cubic-bezier(.2,.8,.2,1), transform 200ms cubic-bezier(.2,.8,.2,1),
+    opacity 180ms ease, --focus-left-extension 180ms ease, --focus-right-extension 180ms ease;
+}
+/* 窗口宽度 = 用户 resize 出来的基准宽 + **右栏锁存宽**（--launcher-right-width 由 QuickInput 注入，
+   只在"右栏从关到开"那一刻记一次值）。left 同时右移半个增量，因为窗口是 translateX(-50%) 居中的：
+   这样窗口左边缘绝对不动 → 中间的 chat 面板也绝对不动，只有右边长出一块。
+   之后拖分隔线只改右栏/中栏的内部分配（--launcher-right-width 不再变化），窗口不会跟着变宽。 */
+.quick-input.focus-mode {
+  width: calc(var(--window-width, var(--home-frame-width)) + var(--launcher-right-width, 0px));
+  left: calc(50% + var(--window-offset-x, 0px) + var(--launcher-right-width, 0px) / 2);
+}
+/* 主窗口与数域窗口使用同一套默认宽度（600px / 窄屏 100vw-48px），
+   这里不再单独覆盖，避免点右栏时因回退值不同导致左侧跳动 8px。 */
+/* 全屏时窗口已经贴满屏幕，不能再加右栏宽度（要压过上面两条，含 focus-primary 版本） */
+.quick-input.focus-mode.window-maximized,
+.quick-input.focus-mode.window-maximized.focus-primary {
+  width: 100vw;
+  left: 0;
+}
+
+/* 数域窗口：输入卡片用数域色描一圈（钉钉蓝 / 飞书紫），多窗口时靠边框色认应用。
+   --domain-border 由 QuickInput 按窗口注入，Home 窗口没有该变量 → 回退到主题 --line。
+   带 .focus-mode 前缀 + 本文件最后加载，才能压过 kit 深色主题的
+   `:root[data-theme="dark"] .chat-composer-stack { border: none }`（否则深色下边框直接消失）。 */
+.quick-input.focus-mode .chat-composer-stack {
+  border: var(--domain-border, 1px solid var(--line));
+  /* 熔火龙境火焰 canvas 挂载在输入卡内部（absolute 覆盖四周）；只有 launcher 输入卡加 relative，
+     不影响 kit 其他宿主。 */
+  position: relative;
+}
+
+/* ---- 语音模式（实时转写）：输入卡只留文字 + 半透明毛玻璃 ----
+ * 标记 data-voice-mode="realtime" 由 Dock 打在**窗口根**上（见 dock/voiceMode.ts），
+ * kit 的 styles-conversation.css 里有对应的基础规则（藏控件 + 半透明背景）。
+ *
+ * 这里必须再写一遍：各皮肤（wp4/wp5/wp6…）在 styles.css 里**直接写死**了
+ * `.quick-input.focus-mode.skin-wpN .chat-composer-stack` 的 background，特异性 (0,4,0)，
+ * 而 kit 的通用规则只有 (0,2,0) —— 不压过去的话半透明背景会被皮肤规则盖掉，
+ * 表现为「控件藏了但卡片还是实心的」。
+ *
+ * 两个关键点：
+ *  ① 属性在 .quick-input **自身**上（不是它的后代），所以要写成
+ *     `.quick-input[data-voice-mode=...]`；写成后代选择器 `.quick-input [data-voice-mode=...]`
+ *     永远匹配不到 —— 这条规则就等于没写。
+ *  ② 必须带 .focus-mode（窗口根恒为 `.quick-input.focus-mode`）把特异性抬到 (0,4,0)，
+ *     与皮肤规则同权重，靠「本文件最后加载」取胜。 */
+.quick-input.focus-mode[data-voice-mode="realtime"] .chat-composer-stack {
+  background: color-mix(in srgb, color-mix(in srgb, var(--focus-body-bg) 84%, var(--ink) 16%) 88%, transparent);
+  /* 语音优先要「只有文字+背景」：描边整个去掉（不是淡淡的描边）。 */
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: blur(14px) saturate(115%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+}
+/* 皮肤自带的装饰性多重 inset 描边（wp6 的三重金边）在语音态也一起去掉，只留干净的一块玻璃。 */
+.quick-input.focus-mode.skin-wp5[data-voice-mode="realtime"] .chat-composer-stack,
+.quick-input.focus-mode.skin-wp6[data-voice-mode="realtime"] .chat-composer-stack {
+  background: color-mix(in srgb, color-mix(in srgb, var(--focus-body-bg) 84%, var(--ink) 16%) 88%, transparent);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* ---- 语音优先的「极简聊天窗」（.voice-first-chat）----
+ * 松手即发之后，窗口保持极简：只有「答复区 + 最简输入框」，没有窗口外壳。
+ *
+ * 要藏的是**整条顶部**，不只是红绿灯：
+ *   · .focus-topbar-wrap 是 launcher 自己那层 38px 顶栏，里面装着
+ *     ① 红绿灯（.focus-window-controls）② portal 进来的 LauncherToolbar
+ *     （会话标题 + 会话列表/数域/右栏三个按钮，见 LauncherToolbar.tsx）。
+ *     顶栏本身还有一条分隔线（.focus-topbar-wrap::before 的 border-bottom）与背景色。
+ *     → 整个 wrap 一起藏，顶部才算真正消失（只藏红绿灯会剩一条空标题栏）。
+ *     （预览态早就这么干了：.window-preview .focus-topbar-wrap 也是 display:none。）
+ *   · .chat-time-marker 是消息之间的时间线标记（如 21:36），极简态下没有意义。
+ *
+ * 放在本文件（最后加载）而不是 kit 里：launcher 的 .focus-mode .chat-topbar
+ * 是 (0,2,0)，且在 kit 样式之后加载 —— 写在 kit 里的同权重 display:none 会被它盖回去。
+ * 这里用 .quick-input.voice-first-chat 前缀抬到 (0,3,0)，稳定压过。 */
+.quick-input.voice-first-chat .focus-topbar-wrap { display: none; }
+.quick-input.voice-first-chat .chat-time-marker { display: none; }
+.quick-input.voice-first-chat .msg.bot .msg-footer { display: none; }
+.quick-input.voice-first-chat .msg.user,
+.quick-input.voice-first-chat .msg.user .msg-bubble-wrap {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+.quick-input.voice-first-chat .msg.user .bubble {
+  font-size: 15px;
+  line-height: 1.55;
+  max-width: min(100%, calc(var(--voice-text-width, 100%) + 28px));
+  background: color-mix(in srgb, color-mix(in srgb, var(--focus-body-bg) 84%, var(--ink) 16%) 88%, transparent);
+  backdrop-filter: blur(14px) saturate(115%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+  border-radius: 20px;
+}
+/* 兜底：LauncherToolbar 正常是 portal 进 .focus-topbar-wrap（被上面那条一起藏了），
+   但它首帧可能还没拿到 portal 目标、就地渲染在 .chat-main 里 —— 那时它不在 wrap 内，
+   这条负责把它也藏掉。 */
+.quick-input.voice-first-chat .chat-topbar { display: none; }
+/* 录音中 kit 会把 placeholder 一起淡掉（避免与正在写入的文字叠在一起）；
+ * 极简窗是「发完之后」的常态，placeholder 该留着 —— 否则空输入框看着像坏了。 */
+.quick-input.voice-first-chat .chat-composer-stack textarea::placeholder { opacity: .75; }
+.quick-input.voice-first-chat[data-voice-message-sent="true"]:not([data-voice-recording]):not([data-voice-sending]) .chat-input-zone { display: none; }
+
+/* 快捷键发起的极简窗：与预览卡共享底部锚点；答复增长时只移动窗口顶边。 */
+.quick-input.focus-mode.voice-first-surface:not(.window-maximized) {
+  top: auto;
+  bottom: var(--home-composer-bottom);
+  height: var(--voice-chat-height, 170px);
+  max-height: calc(100vh - 12px - var(--home-composer-bottom));
+  transition: height 220ms cubic-bezier(.2,.8,.2,1), left 180ms ease, width 180ms ease, opacity 180ms ease;
+}
+.quick-input.focus-mode.voice-first-surface:not(.window-maximized)::before {
+  background: color-mix(in srgb, var(--focus-body-bg) 92%, transparent);
+  backdrop-filter: blur(14px) saturate(115%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+}
+.quick-input.focus-mode.voice-first-surface {
+  --shell-bg: transparent;
+}
+.quick-input.focus-mode.voice-first-surface .chat-shell,
+.quick-input.focus-mode.voice-first-surface .chat-main,
+.quick-input.focus-mode.voice-first-surface .agent-content-frame {
+  background: transparent;
+}
+.quick-input.focus-mode.voice-first-surface .chat-main { --fade-stop: transparent; }
+.quick-input.focus-mode.voice-first-surface .chat-body-fade { background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.quick-input.focus-mode.voice-first-surface .chat-composer-stack {
+  background: color-mix(in srgb, color-mix(in srgb, var(--focus-body-bg) 84%, var(--ink) 16%) 88%, transparent);
+  backdrop-filter: blur(14px) saturate(115%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+}
+/* 皮肤卡片有更具体的实色背景，语音优先统一覆盖。 */
+.quick-input.focus-mode.voice-first-surface.skin-wp5 .chat-composer-stack,
+.quick-input.focus-mode.voice-first-surface.skin-wp6 .chat-composer-stack {
+  background: color-mix(in srgb, color-mix(in srgb, var(--focus-body-bg) 84%, var(--ink) 16%) 88%, transparent);
+}
+.quick-input.focus-mode.voice-first-surface .chat-body-inner { padding-bottom: 20px; }
+.quick-input.focus-mode.voice-first-surface .chat-stream-spacer { display: none; }
+.quick-input.focus-mode.voice-first-surface:not([data-voice-height-capped]) .chat-body { overflow-y: hidden; }
+.quick-input.focus-mode.voice-first-surface[data-voice-height-capped] .chat-body { overflow-y: auto; }
+/* 极简窗发送：输入背景 → 文字 → 窗口 → 消息背景，保持底部锚点不动。 */
+.quick-input.focus-mode.voice-first-surface[data-voice-phase="background"] .chat-composer-stack,
+.quick-input.focus-mode.voice-first-surface[data-voice-phase="flight"] .chat-composer-stack {
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: background-color 380ms ease, box-shadow 380ms ease, backdrop-filter 380ms ease;
+}
+.quick-input.focus-mode.voice-first-surface[data-voice-phase]::before,
+.quick-input.focus-mode.voice-first-surface[data-voice-phase] .chat-body {
+  animation: none !important;
+  transition: opacity 480ms ease;
+}
+.quick-input.focus-mode.voice-first-surface:is([data-voice-phase="background"], [data-voice-phase="flight"])::before,
+.quick-input.focus-mode.voice-first-surface:is([data-voice-phase="background"], [data-voice-phase="flight"]) .chat-body { opacity: 0; }
+.quick-input.focus-mode.voice-first-surface:is([data-voice-phase="window"], [data-voice-phase="bubble"])::before,
+.quick-input.focus-mode.voice-first-surface:is([data-voice-phase="window"], [data-voice-phase="bubble"]) .chat-body { opacity: 1; }
+.quick-input.voice-first-chat[data-voice-phase="window"] .msg.user .bubble,
+.quick-input.voice-first-chat[data-voice-phase="flight"] .msg.user .bubble { background: transparent; }
+.quick-input.voice-first-chat .msg.user .bubble { transition: background-color 450ms ease; }
+/* 原预览展开动画不能在四段序列结束后重播。 */
+.quick-input.focus-mode.voice-first-surface.window-direct-enter,
+.quick-input.focus-mode.voice-first-surface.window-previewed:not(.window-preview)::before,
+.quick-input.focus-mode.voice-first-surface.window-previewed:not(.window-preview) .chat-body { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .quick-input.focus-mode.voice-first-surface[data-voice-phase]::before,
+  .quick-input.focus-mode.voice-first-surface[data-voice-phase] .chat-body,
+  .quick-input.focus-mode.voice-first-surface[data-voice-phase] .chat-composer-stack,
+  .quick-input.voice-first-chat .msg.user .bubble { transition: none !important; }
+}
+.voice-message-flight {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  will-change: transform;
+}
+
+/* ---- launcher 左栏精简（只在本 app 生效，kit 其他宿主保持原样）---- */
+/* 1) 顶部品牌行（Home / 宿主应用名）与底部用户区都不显示：launcher 顶栏已经有会话标题，
+      用户身份与退出入口在 Dock 的 Home 右键菜单里，左栏只留「新建对话 + 会话列表」。 */
+.chat-shell.is-launcher .chat-pane-left .chat-sidebar-head,
+.chat-shell.is-launcher .chat-pane-left .chat-sidebar-user { display: none; }
+/* 少了 46px 的 head，给「新建对话」行补一点上边距，避免贴住窗口顶边。 */
+.chat-shell.is-launcher .chat-pane-left .chat-sidebar-newrow { padding-top: 14px; }
+/* 顶栏按钮触发的悬浮面板（is-hover 时 top:0 盖住顶栏）要整体下移一个顶栏高度，
+   否则「新建对话」行会被浮在 301 层的侧栏开关压住。 */
+.chat-shell.is-launcher .chat-pane-left.is-hover .chat-sidebar-inner { padding-top: 38px; }
+/* 2) 左栏与中栏之间的分割竖线：与右栏 border-left 同款（同 1px --line、同底色）。
+      收起时（flex-basis 0）必须去掉边框，否则 1px 的 border 会把收起态撑成一条细线。 */
+.chat-shell.is-launcher .chat-pane-left { border-right: 1px solid var(--line); }
+.chat-shell.is-launcher .chat-pane-left:not(.is-open):not(.is-hover) { border-right-width: 0; }
+/* kit 的左栏 inner 是硬编码 280px，现在面板多了 1px 右边框（border-box），
+   会溢出被 overflow:hidden 裁掉；改成 100% 跟右栏 .chat-right-inner 的做法一致。 */
+.chat-shell.is-launcher .chat-pane-left .chat-sidebar-inner { width: 100%; }
+
+/* 输入区几何统一：新建任务空态（无消息）与存量会话共用同一个宽度公式，
+   否则从侧栏切进已有对话时输入框会突然变宽、下沉一截。
+   宽度跟**中栏（chatpanel）自身**宽度走，不是跟窗口/页面走：
+     80% + 96px  —— 比例项（中栏越宽输入框越宽，但增长比中栏慢）
+     1200px      —— 绝对上限
+     100% - 32px —— 两侧至少留 32px
+   百分比在 .chat-main-inner / .chat-body-inner 使用处解析，基准就是 chat-main 的宽度，
+   所以右栏挤占空间、或拖窄窗口时输入框会跟着收；把中栏拉宽时它会一起变宽。
+   消息区（.chat-body-inner）共用同一个变量，与输入框严格等宽。
+   真人会话也使用同一套宽度和底部留白，切换时输入卡位置不变。 */
+.chat-shell.is-launcher .chat-main {
+  --chat-content-width: min(1200px, calc(80% + 96px), calc(100% - 32px));
+}
+.chat-shell.is-launcher .chat-main:not(.is-empty) .chat-main-inner {
+  width: var(--chat-content-width);
+  max-width: none;
+  margin: 0 auto 16px;
+}
+.chat-shell.is-launcher .chat-main .chat-composer-stack {
+  margin-left: 0; margin-right: 0; margin-bottom: 0;
+}
+/* 空态：贴底居中，与上面非空态的宽度/距底完全对齐。 */
+.chat-shell.is-launcher .chat-main.is-empty .chat-main-inner {
+  top: auto; bottom: 16px; margin-bottom: 0; transform: translateX(-50%);
+  width: var(--chat-content-width);
+}
+.chat-shell.is-launcher-preview { background: transparent; }.chat-shell.is-launcher-preview.layout-grow { --grow-left: 0px !important; --grow-right: 0px !important; }
+
+/* —— 聊天正文可选中复制 ——
+   styles.css 里 `html, body, #root` 挂了 user-select: none（桌面/窗口整体拖拽时不想顺手
+   选中文字），而 user-select 的 auto 会跟着祖先的 none 走，于是消息正文也一起选不了了。
+   这里只在内容区放开 text；顶栏、输入卡、按钮这些控件继续排除 —— 拖窗口时不会把标题选中，
+   双击按钮也不会选中按钮上的字。 */
+.quick-input.focus-mode :is(.chat-main, .chat-pane-left, .chat-pane-right) { user-select: text; }
+.quick-input.focus-mode :is(.focus-topbar-wrap, .chat-input-zone, .launcher-toolbar, button) { user-select: none; }
+.chat-shell.is-launcher-preview .agent-navigation-sidebar,
+.chat-shell.is-launcher-preview .chat-pane-left,
+.chat-shell.is-launcher-preview .chat-pane-right { display: none; }
+.chat-shell.is-launcher-preview > :not(.agent-content-frame),
+.chat-shell.is-launcher-preview .agent-content-frame * { visibility: hidden; pointer-events: none; }
+.chat-shell.is-launcher-preview .chat-input-zone,
+.chat-shell.is-launcher-preview .chat-input-zone * { visibility: visible; pointer-events: auto; }
+.chat-shell.is-launcher-preview .cowork-mentions,
+.chat-shell.is-launcher-preview .cowork-mentions * { visibility: visible; pointer-events: auto; }
+/* 预览态的通配规则不能让主题画布截获输入卡上的按钮点击。 */
+.chat-shell.is-launcher-preview .chat-input-zone :is(.burning-composer-canvas, .gold-composer-canvas, .water-composer-canvas, .gold-composer-dragon) { pointer-events: none; }
+/* Dock hover 预览浮层：消息与输入框一起按内容高度展示（消息区在 AgentWindow 内部滚动） */
+.quick-input:not(.focus-mode) { height: min(560px, calc(100vh - 180px)); }
+.quick-input:not(.focus-mode) .chat-shell { height: 100%; }
+/* 聚焦窗口：AgentWindow 撑满窗口壳内容区 */
+/* 全屏工作区：AgentWindow 三栏 + 底部返回条 */
+.workspace .ws-agent { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.workspace .ws-agent > .chat-shell { flex: 1; min-height: 0; }
+.workspace .ws-return-bar {
+  flex: none;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(14, 14, 18, 0.6);
+}
+.workspace .ws-return {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 4px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.workspace .ws-return:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+:root[data-theme="light"] .workspace { background: rgba(246, 246, 245, 0.94); }
+
+/* ===================== 桌面「进行中」行：竖长会话卡片 ===================== */
+:root {
+  --desk-run-bg: rgba(40, 40, 40, 0.1);
+  --desk-run-ink: #e5e5e5;
+  --desk-run-dot: #b0b0b0;
+  --desk-card-bg: rgba(28, 28, 28, 0.58);
+  --desk-card-line: rgba(255, 255, 255, 0.12);
+  --desk-card-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  --desk-card-preview-ink: rgba(255, 255, 255, 0.72);
+  --desk-caption-bg: rgba(28, 28, 28, .86);
+  --desk-drop-line: #4c8dff;
+}
+:root[data-theme="light"] {
+  --desk-run-bg: rgba(60, 60, 60, 0.06);
+  --desk-run-ink: #444;
+  --desk-run-dot: #777;
+  --desk-card-bg: rgba(255, 255, 255, 0.68);
+  --desk-card-line: rgba(28, 28, 30, 0.12);
+  --desk-card-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  --desk-card-preview-ink: rgba(36, 36, 38, 0.66);
+  --desk-caption-bg: rgba(244, 244, 244, .92);
+  --desk-drop-line: #2f6fe0;
+}
+.desktop-session-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 10px;
+  background: var(--desk-card-bg);
+  color: var(--ink);
+  box-shadow: var(--desk-card-shadow);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  cursor: default;
+  overflow: visible;
+  transition: opacity 180ms ease;
+  user-select: none;
+}
+.desktop-session-card:hover { opacity: 0.92; }
+.desktop-card-title {
+  padding: 10px 26px 4px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+  flex: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* 标题与内容之间的「小蒙版」：内容滚到标题下沿时柔和溶出，不要硬切。
+   这里**必须用 mask 遮内容本身**，不能像聊天区 .chat-body-fade 那样盖一层渐变底色 ——
+   卡片底色是半透明的 --desk-card-bg（暗色 alpha ≈ .58）+ backdrop-blur，再叠一层同色
+   会按 1-(1-.58)² ≈ .82 加深，标题下方直接显出一条深色带；mask 只作用于内容像素，
+   对卡片底色零影响，且明暗主题通用、不需要再定义一套颜色。
+   高度按卡片尺度走（小卡 10px ≈ 0.6 行，大卡 13px），比聊天区的 64px 小一个量级。
+   实测 16px 会把第一行整行糊掉，收到 13px 才是"一点点"的程度。
+   --card-top-fade 注册成 <length> 后可以做过渡：滚动到顶时收到 0（第一行保持清晰）。 */
+@property --card-top-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.desktop-card-preview {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 4px 16px 10px 20px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--desk-card-preview-ink);
+  overflow: auto;
+  scrollbar-width: none;
+  --card-top-fade: 0px;
+  transition: --card-top-fade 160ms ease;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 var(--card-top-fade));
+  mask-image: linear-gradient(180deg, transparent 0, #000 var(--card-top-fade));
+}
+/* 卡片内 markdown 列表：减少默认 margin，避免 bullet 被切掉 */
+.desktop-card-preview ul, .desktop-card-preview ol {
+  margin: 4px 0;
+  padding-left: 16px;
+}
+/* 已经滚离顶部（含首次自动滚到最新）才启用蒙版：内容少、整段可见时不糊第一行。 */
+.desktop-card-preview.is-scrolled { --card-top-fade: 10px; }
+.desktop-card-preview::-webkit-scrollbar { width: 0; height: 0; }
+.desktop-card-body { position: relative; flex: 1; min-height: 0; }
+.desktop-card-scrollbar {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  right: -7px;
+  width: 8px;
+  opacity: 0;
+  pointer-events: none;
+  touch-action: none;
+  transition: opacity 120ms ease;
+}
+.desktop-session-card:hover .desktop-card-scrollbar.is-scrollable,
+.desktop-card-scrollbar.is-dragging { opacity: 1; pointer-events: auto; }
+.desktop-card-scrollbar-thumb {
+  display: block;
+  width: 4px;
+  margin-left: 2px;
+  border-radius: 4px;
+  background: rgba(160, 160, 160, .7);
+}
+:root[data-theme="light"] .desktop-card-scrollbar-thumb { background: rgba(80, 80, 80, .5); }
+.desktop-card-message + .desktop-card-message { margin-top: 16px; }
+.desktop-card-message.is-user { padding: 9px 10px; border-radius: 8px; background: rgba(160, 160, 160, .14); }
+:root[data-theme="light"] .desktop-card-message.is-user { background: rgba(80, 80, 80, .09); }
+.desktop-card-message.is-user .md > :last-child { margin-bottom: 0; }
+/* 卡片状态角标：贴在卡片右上角外侧（.desktop-session-card 的 overflow 是 visible，允许压出边角）。
+   运行中 = 转圈；跑完后在同一个位置变成绿色圆圈 —— 不再占用一行文字。 */
+.desktop-card-status {
+  position: absolute;
+  /* 圆心比卡片圆角略微向左下收 1.5px（原来正好压在角上，探出去显得偏大偏外）。 */
+  top: -3px;
+  right: -3px;
+  z-index: 3;
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.desktop-card-status.is-running {
+  border: 1.25px solid rgba(140, 140, 140, .35);
+  border-top-color: var(--ink);
+  animation: desktop-card-spin .8s linear infinite;
+}
+.desktop-card-status.is-done {
+  background: #21b573;
+  box-shadow: 0 0 0 1.5px rgba(33, 181, 115, .2);
+}
+@keyframes desktop-card-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .desktop-card-status.is-running { animation-duration: 2.4s; } }
+.desktop-card-refresh-error, .desktop-card-send-error { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0 10px 6px; color: var(--ink); font-size: 11px; white-space: normal; overflow: hidden; }
+.desktop-card-preview .md { font-size: inherit; line-height: inherit; color: inherit; overflow-wrap: anywhere; }
+.desktop-card-preview .md > :first-child { margin-top: 0; }
+.desktop-card-preview .md img { max-width: 100%; }
+
+/* 桌面进行中组件：格子由 desktopGrid.ts 按视口计算。 */
+.desktop-grid-guide {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  pointer-events: none;
+}
+.desktop-grid-guide > span {
+  border: 1px dashed rgba(190, 190, 190, .36);
+  border-radius: 12px;
+  background: rgba(128, 128, 128, .06);
+}
+/* 被组件占住的格子只留位置、不画线：组件内部的虚线由卡片自己带（见 .is-editing 那段）。 */
+.desktop-grid-guide > span.is-covered {
+  border-color: transparent;
+  background: none;
+}
+.desktop-running-widget {
+  --widget-line: rgba(180, 180, 180, .4);
+  --widget-border-width: 1px;
+  position: absolute;
+  z-index: 3;
+  /* 可见描边交给 ::after 画（见下），这里留等宽透明边框，尺寸/内容布局与原来的 border-box 完全一致。 */
+  border: var(--widget-border-width) solid transparent;
+  border-radius: 12px;
+  box-sizing: border-box;
+  background: transparent;
+  box-shadow: none;
+}
+/* 会话组标题压在组件顶边上（.desktop-widget-caption top:-10px）。
+   如果顶边直接由 border 绘制，那条横线会从标题文字中间穿过去。
+   这里用一层伪元素画整圈边框，再按标题的实际横向区间把这块矩形从遮罩里减掉：
+   标题底下的横线被打断，而标题自身不需要任何不透明背景。
+   --widget-caption-left / --widget-caption-width 由 Desktop.tsx 实测标题盒子后写入。 */
+.desktop-running-widget::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--widget-border-width) * -1);
+  border: var(--widget-border-width) solid var(--widget-line);
+  border-radius: 12px;
+  pointer-events: none;
+  mask-image: linear-gradient(#000, #000), linear-gradient(#000, #000);
+  mask-size: 100% 100%, var(--widget-caption-width, 0px) 26px;
+  mask-position: 0 0, var(--widget-caption-left, 0px) 0;
+  mask-repeat: no-repeat, no-repeat;
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+}
+/* 组件整体不再支持拖动（移动把手已收到顶部标题栏），悬停时不再显示 grab 光标。 */
+.desktop-running-widget:hover { --widget-line: rgba(210, 210, 210, .7); }
+
+/* 边缘拖拽把手：扩大拖拽范围，hover 到组件边缘就能拖 */
+.widget-drag-edge {
+  position: absolute;
+  background: transparent;
+  z-index: 1;
+}
+.widget-drag-edge--top {
+  top: 0;
+  left: 16px;
+  right: 16px;
+  height: 8px;
+  cursor: grab;
+}
+.widget-drag-edge--bottom {
+  bottom: 0;
+  left: 16px;
+  right: 16px;
+  height: 8px;
+  cursor: grab;
+}
+.widget-drag-edge--left {
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 8px;
+  cursor: grab;
+}
+.widget-drag-edge--right {
+  right: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 8px;
+  cursor: grab;
+}
+.widget-drag-edge:active {
+  cursor: grabbing;
+}
+/* 选中态只换颜色，不动 --widget-border-width：
+   那条 1px 边框虽然透明也占布局（box-sizing:border-box），一旦加到 2px，
+   内容区就少 2px —— 切换选中的会话组时里面的卡片会整体跳一下。
+   选中反馈交给更亮的描边色 + 外圈光晕（box-shadow 不参与布局）。 */
+.desktop-running-widget.is-editing {
+  z-index: 4;
+  --widget-line: rgba(247, 247, 247, .92);
+  background: rgba(128, 128, 128, .1);
+  box-shadow: 0 0 0 3px rgba(128, 128, 128, .16), 0 12px 36px rgba(0, 0, 0, .16);
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+:root[data-theme="light"] .desktop-running-widget.is-editing {
+  --widget-line: rgba(36, 36, 36, .72);
+}
+.desktop-running-widget.is-editing:active,
+.desktop-running-widget.is-editing .desktop-session-card { cursor: grab; }
+/* 编辑态的虚线框必须贴在卡片自己的盒子上。
+   页面上那层 .desktop-grid-guide 是按格子（cardWidth）画的，而卡片被 .desktop-widget-slots
+   的 12px/8px padding 内缩了一圈，两者永远对不齐 —— 那层虚线留在组件里就成了
+   「虚线画在卡片外面」。所以：组件覆盖到的格子不画（见 Desktop.tsx 的 is-covered），
+   卡片/空槽位各自带一圈 dashed。用 outline 而不是 border：不参与布局，卡片内容不会跳 1px。 */
+.desktop-running-widget.is-editing .desktop-widget-slots > * {
+  outline: 1px dashed rgba(205, 205, 205, .45);
+  outline-offset: 0;
+}
+:root[data-theme="light"] .desktop-running-widget.is-editing .desktop-widget-slots > * {
+  outline-color: rgba(60, 60, 60, .38);
+}
+.desktop-running-widget.is-drop-target {
+  --widget-line: rgba(230, 230, 230, .8);
+  background: rgba(128, 128, 128, .12);
+  box-shadow: 0 0 0 3px rgba(128, 128, 128, .16);
+}
+/* A sidebar session drag exposes the desktop without unmounting Home Chat or losing its draft. */
+:root.is-dragging-home-session .quick-input.focus-primary {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: none !important;
+}
+:root.is-dragging-home-session .quick-input.focus-primary * { pointer-events: none !important; }
+.desktop-widget-caption {
+  position: absolute;
+  left: 12px;
+  top: -10px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .8);
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: transparent;
+  /* 标题栏是整个组件的移动把手：只有这里能拖动组件，正文区不再拖动外层。 */
+  cursor: grab;
+  touch-action: none;
+}
+.desktop-widget-caption:active { cursor: grabbing; }
+.desktop-widget-caption > span { flex: none; font-size: 11px; font-weight: 400; }
+.desktop-widget-title {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-shadow: inherit;
+  cursor: pointer;
+}
+.desktop-widget-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.desktop-widget-title:hover { text-decoration: underline; }
+/* 溢出计数徽标：会话数超过可见格位时出现，点击打开整组列表。 */
+.desktop-widget-count {
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: .72;
+  text-shadow: inherit;
+  cursor: pointer;
+}
+.desktop-widget-count:hover { opacity: 1; text-decoration: underline; }
+:root[data-theme="light"] .desktop-widget-caption { color: #111; text-shadow: none; }
+.desktop-widget-slots { display: grid; width: 100%; height: 100%; box-sizing: border-box; padding: 8px 6px 6px; }
+.desktop-widget-slots .desktop-session-card {
+  min-width: 0;
+  min-height: 0;
+  font-size: 13px;
+}
+.desktop-widget-slots .desktop-card-title { font-size: 13px; padding: 8px 26px 4px 8px; }
+.desktop-widget-slots .desktop-card-preview { font-size: 12px; padding: 4px 10px 10px; }
+/* 大卡片字号大一号，顶部蒙版同步放大一档，保持"约半行"的观感一致 */
+.desktop-widget-slots .desktop-card-preview.is-scrolled { --card-top-fade: 13px; }
+.desktop-widget-slots .desktop-card-refresh-error, .desktop-widget-slots .desktop-card-send-error { padding: 0 14px 7px; }
+.desktop-refresh-runner { position: fixed; left: -10000px; top: 0; width: 900px; height: 600px; visibility: hidden; pointer-events: none; }
+.desktop-widget-slots .desktop-session-card[draggable="true"]:active { cursor: grabbing; }
+.desktop-widget-slots .desktop-session-card.is-dragging { cursor: grabbing; }
+/* 文件拖到会话卡片上：卡片描一圈高亮，告诉用户「松手就发到这里」。 */
+.desktop-session-card.is-file-drop {
+  box-shadow: 0 0 0 2px var(--desk-drop-line) inset, var(--desk-card-shadow);
+}
+/* 在卡片上按住不放够 1 秒：先闪烁提示（2 次快速闪烁），闪烁结束后聊天窗再打开。 */
+.desktop-session-card.is-held {
+  box-shadow: 0 0 0 2px var(--desk-accent, var(--desk-drop-line)) inset, var(--desk-card-shadow);
+  animation: card-hold-flash 0.45s linear;
+}
+@keyframes card-hold-flash {
+  0% { box-shadow: 0 0 0 0 transparent inset, var(--desk-card-shadow); }
+  20% { box-shadow: 0 0 0 5px var(--desk-accent, var(--desk-drop-line)) inset, var(--desk-card-shadow); }
+  40% { box-shadow: 0 0 0 0 transparent inset, var(--desk-card-shadow); }
+  65% { box-shadow: 0 0 0 5px var(--desk-accent, var(--desk-drop-line)) inset, var(--desk-card-shadow); }
+  85% { box-shadow: 0 0 0 0 transparent inset, var(--desk-card-shadow); }
+  100% { box-shadow: 0 0 0 2px var(--desk-accent, var(--desk-drop-line)) inset, var(--desk-card-shadow); }
+}
+.window-file-drop-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--home-composer-bottom) + var(--home-composer-pad) + 18px);
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--panel, rgba(34, 38, 47, .92));
+  border: 1px solid var(--line, rgba(225, 230, 242, .2));
+  box-shadow: 0 10px 28px var(--shadow-color, rgba(8, 11, 21, .36));
+  color: var(--ink, #f4f5f8);
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: file-drop-hint-in 180ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+@keyframes file-drop-hint-in {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.desktop-widget-empty {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(110, 110, 110, .13);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  color: rgba(255, 255, 255, .68);
+  font-size: 12px;
+  text-align: center;
+}
+:root[data-theme="light"] .desktop-widget-empty { background: rgba(110, 110, 110, .11); }
+/* 空槽位可点：悬停时轻微提亮并给出指针，点击打开「选会话」dialog。 */
+.desktop-widget-empty.is-addable { cursor: pointer; transition: background 120ms ease, color 120ms ease; }
+.desktop-widget-empty.is-addable:hover,
+.desktop-widget-empty.is-addable:focus-visible {
+  outline: none;
+  background: rgba(110, 110, 110, .2);
+  color: rgba(255, 255, 255, .9);
+}
+:root[data-theme="light"] .desktop-widget-empty.is-addable:hover,
+:root[data-theme="light"] .desktop-widget-empty.is-addable:focus-visible { background: rgba(110, 110, 110, .18); color: rgba(0, 0, 0, .72); }
+.desktop-widget-empty-hint { font-size: 12.5px; letter-spacing: .2px; opacity: .85; pointer-events: none; }
+
+/* ===================== 文件管理组件 =====================
+   和会话组共用同一套外壳（.desktop-running-widget 负责描边/拖动/缩放），
+   区别只在内容区：里面没有卡片概念，现在就是一块空白面板。
+   非编辑态不显示抓手（拖不动就别给 grab 光标），编辑态沿用组件本身的选中样式。 */
+.desktop-file-widget { cursor: default; }
+.desktop-file-widget:hover { cursor: default; }
+.desktop-file-widget.is-editing,
+.desktop-file-widget.is-editing:hover { cursor: grab; }
+.desktop-file-body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  /* 顶边留一条给绝对定位的标题；左右几乎不留，把宽度让给文件列表。 */
+  padding: 10px 6px 6px;
+  border-radius: 12px;
+  background: var(--desk-run-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* kit 的 Finder 文件管理器铺满面板：外层只负责裁切，滚动交给 .afm 自己的列表。 */
+.desktop-file-manager { flex: 1 1 auto; min-height: 0; display: flex; }
+.desktop-file-manager .afm { min-height: 0; height: auto; flex: 1 1 auto; }
+.desktop-file-manager .afm-list,
+.desktop-file-manager .afm-columns { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.desktop-file-manager .afm .artifact-fm-toolbar { height: 34px; min-height: 34px; padding: 0 4px; gap: 4px; }
+/* 全屏预览：直接把组件本身撑到视口（不换父节点，管理器内部状态才不会丢）。
+   内联的 left/top/width/height 是网格算出来的，这里必须 !important 压过去。 */
+.desktop-running-widget.desktop-file-widget.is-file-expanded {
+  position: fixed !important;
+  left: 5vw !important;
+  top: 6vh !important;
+  width: 90vw !important;
+  height: 88vh !important;
+  z-index: 900;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .45);
+  cursor: default;
+}
+/* 编辑态给一圈虚线，和会话组里卡片自己带的虚线保持同一视觉语言。 */
+.desktop-file-widget.is-editing .desktop-file-body { outline: 1px dashed rgba(205, 205, 205, .45); }
+:root[data-theme="light"] .desktop-file-widget.is-editing .desktop-file-body { outline-color: rgba(60, 60, 60, .38); }
+/* 面板铺满整个组件（含标题文字所在的顶边内侧），backdrop-filter 会把压在它下面的标题一起糊掉。
+   标题是绝对定位的兄弟节点，抬一层 z-index 就能盖回来。 */
+.desktop-file-widget .desktop-widget-caption { z-index: 2; }
+
+.desktop-widget-resize {
+  position: absolute;
+  z-index: 6;
+  touch-action: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.desktop-running-widget:hover .desktop-widget-resize,
+.desktop-running-widget.is-editing .desktop-widget-resize { opacity: 1; pointer-events: auto; }
+.desktop-widget-resize::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: #d0d0d0;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .4);
+}
+:root[data-theme="light"] .desktop-widget-resize::after {
+  background: #626262;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .9), 0 1px 2px rgba(0, 0, 0, .3);
+}
+.desktop-widget-resize.is-right { top: 14px; bottom: 14px; right: -10px; width: 20px; cursor: ew-resize; }
+.desktop-widget-resize.is-right::after { width: 4px; height: 40px; left: 8px; top: calc(50% - 20px); }
+.desktop-widget-resize.is-bottom { left: 14px; right: 14px; bottom: -10px; height: 20px; cursor: ns-resize; }
+.desktop-widget-resize.is-bottom::after { width: 40px; height: 4px; top: 8px; left: calc(50% - 20px); }
+.desktop-widget-resize.is-corner { right: -10px; bottom: -10px; width: 24px; height: 24px; cursor: nwse-resize; }
+.desktop-widget-resize.is-corner::after { width: 12px; height: 12px; right: 4px; bottom: 4px; border-radius: 4px; }
+.desktop-edit-toolbar {
+  position: absolute;
+  z-index: 10;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px 7px 13px;
+  border: 1px solid var(--desk-card-line);
+  border-radius: 12px;
+  background: var(--panel-bg);
+  color: var(--ink);
+  box-shadow: var(--desk-card-shadow);
+  backdrop-filter: blur(20px);
+  font-size: 12px;
+}
+.desktop-edit-toolbar button,
+.desktop-context-menu button {
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.desktop-edit-toolbar button { border-radius: 7px; padding: 6px 10px; }
+.desktop-edit-toolbar button:hover,
+.desktop-context-menu button:hover { background: rgba(128, 150, 190, .18); }
+.desktop-edit-toolbar button.is-primary { background: #3478ee; color: #fff; }
+.desktop-edit-toolbar button:disabled,
+.desktop-context-menu button:disabled { opacity: .4; cursor: default; }
+.desktop-page-nav {
+  position: absolute;
+  z-index: 10;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--desk-card-line);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  color: var(--ink);
+  font-size: 12px;
+  box-shadow: var(--desk-card-shadow);
+}
+.desktop-page-nav button { border: 0; background: transparent; color: inherit; padding: 2px 7px; font-size: 18px; cursor: pointer; }
+.desktop-page-nav button:disabled { opacity: .3; cursor: default; }
+.desktop-context-menu {
+  position: fixed;
+  z-index: 250;
+  min-width: 180px;
+  padding: 5px;
+  border: 1px solid var(--desk-card-line);
+  border-radius: 10px;
+  background: var(--panel-bg);
+  box-shadow: var(--desk-card-shadow);
+  backdrop-filter: blur(20px);
+}
+.desktop-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 6px;
+  text-align: left;
+  white-space: nowrap;
+  font-size: 12px;
+}
+/* 带图标的那几项（会话卡片右键：重发 / 移除）：图标与文字一行，图标固定 15px 不吃 flex。 */
+.desktop-context-menu button.has-icon { display: flex; align-items: center; gap: 8px; }
+.desktop-context-menu button.has-icon > span { flex: 1; min-width: 0; }
+.desktop-context-menu .desktop-menu-icon { flex: none; width: 15px; height: 15px; opacity: .72; }
+.desktop-context-menu button.has-icon:hover:not(:disabled) .desktop-menu-icon { opacity: 1; }
+.desktop-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .38);
+}
+.desktop-name-dialog,
+.desktop-group-list {
+  width: min(420px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--desk-card-line);
+  border-radius: 16px;
+  background: var(--panel-bg);
+  color: var(--ink);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
+  backdrop-filter: blur(24px);
+}
+.desktop-name-dialog h3,
+.desktop-group-list h3 { font-size: 16px; font-weight: 600; }
+.desktop-name-dialog input {
+  width: 100%;
+  margin: 18px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--desk-card-line);
+  border-radius: 8px;
+  outline: none;
+  background: var(--desk-card-bg);
+  color: var(--ink);
+  font: inherit;
+}
+.desktop-name-dialog input:focus { border-color: #77aaff; }
+.desktop-name-dialog > div { display: flex; justify-content: flex-end; gap: 8px; }
+.desktop-name-dialog button,
+.desktop-group-list button { border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
+.desktop-name-dialog button { padding: 8px 13px; }
+.desktop-name-dialog button.is-primary { background: #3478ee; color: #fff; }
+.desktop-name-dialog button:disabled,
+.desktop-group-list button:disabled { opacity: .4; cursor: default; }
+.desktop-group-list { max-height: min(640px, calc(100vh - 80px)); display: flex; flex-direction: column; }
+.desktop-group-list header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.desktop-group-list header button { font-size: 22px; padding: 0 5px; }
+.desktop-group-list header > span { display: flex; align-items: center; gap: 8px; }
+.desktop-group-list header button.desktop-group-add { padding: 6px 10px; background: #3478ee; color: #fff; font-size: 12px; }
+.desktop-group-list-body { overflow-y: auto; }
+.desktop-group-list-body > p { padding: 26px; text-align: center; color: var(--ink-soft); }
+.desktop-group-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 2px;
+  border-top: 1px solid var(--desk-card-line);
+}
+
+/* 文件管理组件：图标模式下的导航栏（返回/前进 + 路径面包屑） */
+.desktop-file-manager { display: flex; flex-direction: column; height: 100%; }
+.file-nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--desk-card-line, rgba(0,0,0,0.08));
+  flex-shrink: 0;
+}
+.file-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--ink, #333);
+  padding: 0;
+}
+.file-nav-btn:hover:not(:disabled) { background: rgba(0,0,0,0.06); }
+.file-nav-btn:disabled { opacity: 0.3; cursor: default; }
+.file-nav-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-soft, #666);
+  scrollbar-width: none;
+}
+.file-nav-crumbs::-webkit-scrollbar { display: none; }
+.file-nav-crumb {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-soft, #666);
+  white-space: nowrap;
+}
+.file-nav-crumb:hover:not(.is-current) { background: rgba(0,0,0,0.06); color: var(--ink, #333); }
+.file-nav-crumb.is-current { color: var(--ink, #333); font-weight: 500; cursor: default; }
+.file-nav-crumb-sep { color: var(--ink-faint, #999); margin: 0 1px; white-space: nowrap; }
+.desktop-group-list-row > button { flex: 1; min-width: 0; padding: 5px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desktop-group-list-row > button:hover { background: rgba(128, 150, 190, .18); }
+.desktop-group-list-row small { display: block; overflow: hidden; text-overflow: ellipsis; color: var(--ink-soft); font-size: 11px; }
+.desktop-group-list-row > span { display: flex; flex: none; }
+.desktop-group-list-row > span button { padding: 4px 6px; }
+
+.dsh-settings { width: min(420px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--card-border); border-radius: 16px; background: var(--panel-bg); color: var(--ink); box-shadow: 0 20px 60px rgba(0, 0, 0, .35); font-size: 12px; }
+.dsh-settings h3 { margin: 0 0 18px; font-size: 16px; font-weight: 600; }
+.dsh-settings label { display: flex; flex-direction: column; gap: 6px; }
+.dsh-settings input { padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-strong); color: var(--ink); }
+.dsh-settings p { color: var(--ink-soft); }
+.dsh-settings div { display: flex; justify-content: flex-end; gap: 8px; }
+.dsh-settings button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--ink); cursor: pointer; }

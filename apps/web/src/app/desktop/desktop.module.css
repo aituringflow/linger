@@ -1,0 +1,233 @@
+.page {
+  --ink: #1b1b18;
+  --ink-soft: #6f6f67;
+  --line: #e1e1db;
+  --paper: #f5f5f2;
+  --mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+  min-height: 100vh;
+  /* clip 不创建滚动容器，否则内部 position:sticky 的顶栏会跟着内容滚走 */
+  overflow-x: clip;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page a {
+  text-decoration: none;
+}
+
+/* ── 首屏 ─────────────────────────────────────────────── */
+.hero {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 82px 40px 66px;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(46px, 5.4vw, 74px);
+  line-height: 1.14;
+  letter-spacing: -0.062em;
+  font-weight: 600;
+  color: #141412;
+}
+
+.lede {
+  max-width: 560px;
+  margin: 28px auto 0;
+  font-size: 14.5px;
+  line-height: 1.95;
+  letter-spacing: 0.01em;
+  color: #6c6c64;
+}
+
+/* ── 桌面录屏 ───────────────────────────────────────────── */
+.heroMedia {
+  max-width: 1080px;
+  margin: 40px auto 0;
+  border: 1px solid #d9d9d2;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #eceee9;
+  box-shadow: 0 26px 64px rgba(23, 23, 21, 0.12), 0 2px 8px rgba(23, 23, 21, 0.05);
+  line-height: 0;
+}
+
+.heroMedia video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ── 组件清单 ───────────────────────────────────────────── */
+.section {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 92px 40px;
+  border-top: 1px solid var(--line);
+}
+
+.sectionHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+}
+
+.h2 {
+  margin: 0;
+  font-size: clamp(29px, 3.3vw, 44px);
+  line-height: 1.4;
+  letter-spacing: -0.048em;
+  font-weight: 500;
+  color: #171715;
+}
+
+.sectionLede {
+  max-width: 660px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.95;
+  color: #6b6b63;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 56px;
+  border-top: 1px solid var(--line);
+}
+
+.card {
+  padding: 30px 28px 34px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.card:nth-child(3n) {
+  border-right: 0;
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cardTop span {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: #a3a39b;
+}
+
+.cardTop i {
+  display: block;
+  width: 16px;
+  height: 1px;
+  background: #c8c8c0;
+}
+
+.card h3 {
+  margin: 30px 0 12px;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #1c1c19;
+}
+
+.card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #6b6b63;
+}
+
+/* ── 收尾 ─────────────────────────────────────────────── */
+.closing {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 96px 40px 104px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.closing h2 {
+  margin: 0;
+  font-size: clamp(30px, 3.6vw, 46px);
+  line-height: 1.34;
+  letter-spacing: -0.05em;
+  font-weight: 500;
+  color: #171715;
+}
+
+.cta {
+  display: inline-block;
+  margin-top: 34px;
+  padding: 13px 26px;
+  border-radius: 9px;
+  background: #1b1b18;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #fff;
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.cta:hover {
+  background: #33332d;
+}
+
+.fineprint {
+  margin: 18px 0 0;
+  font-size: 11.5px;
+  color: #8c8c84;
+}
+
+.footer {
+  padding: 26px 20px 34px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: #9a9a92;
+  text-align: center;
+}
+
+@media (max-width: 1000px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .card:nth-child(3n) {
+    border-right: 1px solid var(--line);
+  }
+  .card:nth-child(2n) {
+    border-right: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .hero {
+    padding: 48px 22px 44px;
+  }
+  .title {
+    font-size: clamp(38px, 10vw, 52px);
+  }
+  .heroMedia {
+    margin-top: 30px;
+    border-radius: 16px;
+  }
+  .section {
+    padding: 64px 22px;
+  }
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 40px;
+  }
+  .card {
+    padding: 26px 20px 30px;
+    border-right: 0;
+  }
+  .closing {
+    padding: 68px 22px 76px;
+  }
+}

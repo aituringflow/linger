@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Development guide
+    url: https://github.com/aituringflow/linger/blob/main/docs/development.md
+    about: Local setup, configuration and the troubleshooting table — check here before filing.
+  - name: Security issue
+    url: https://github.com/aituringflow/linger/blob/main/SECURITY.md
+    about: Report vulnerabilities privately, not in a public issue.
+  - name: Questions and ideas
+    url: https://github.com/aituringflow/linger/discussions
+    about: For usage questions that are not a bug or a concrete feature proposal.

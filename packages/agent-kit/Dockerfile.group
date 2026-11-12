@@ -1,0 +1,18 @@
+FROM node:24-bookworm-slim
+
+# 群容器以 --read-only + 非 root 运行，用户无法自己 apt 装东西，所以终端里要用到的
+# 常用工具必须在镜像里备好：编辑器（vi/nano）是最常被问到的缺失项。
+#
+# apt 源：Debian 官方源在部分网络环境（国内等）会静默超时——apt 把超时当 "Ign"、
+# 返回码仍是 0，随后 install 全部报「Unable to locate package / has no installation
+# candidate」。所以这里用 node 先探一次官方源（8s），不可达再切阿里云镜像，
+# 判据是真实的 HTTP 可达性，而不是 apt 的返回码。
+RUN set -eux; \
+    if ! node -e "fetch('http://deb.debian.org/debian/dists/bookworm/Release',{signal:AbortSignal.timeout(8000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then \
+      sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates git iproute2 iptables vim-tiny nano less; \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /group/artifacts

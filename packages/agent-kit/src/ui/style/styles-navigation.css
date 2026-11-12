@@ -1,0 +1,269 @@
+.agent-navigation-sidebar { position: relative; flex: 0 0 52px; width: 52px; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px; background: var(--sidebar-bg); border-right: 1px solid var(--line); z-index: 310; overflow: visible; }
+.agent-navigation-user { align-self: center; margin-top: auto; padding: 0; border: 0; }
+.desktop-update-button { align-self: center; display: flex; align-items: center; gap: 8px; border: 0; border-radius: 10px; padding: 8px; background: var(--active); color: var(--ink); cursor: pointer; font: inherit; }
+.desktop-update-button svg { width: 22px; height: 22px; }
+.desktop-update-button:disabled { cursor: default; }
+.desktop-update-progress { flex: 0 0 22px; transform: rotate(-90deg); fill: none; stroke-width: 2.5; }
+.desktop-update-progress-track { stroke: currentColor; opacity: .2; }
+.desktop-update-progress-value { stroke: currentColor; stroke-linecap: round; transition: stroke-dashoffset .15s ease; }
+.desktop-update-progress.is-indeterminate { animation: desktopUpdateSpin 1s linear infinite; }
+.desktop-update-progress.is-indeterminate .desktop-update-progress-value { stroke-dasharray: 18 57; }
+@keyframes desktopUpdateSpin { to { transform: rotate(270deg); } }
+.desktop-update-button.is-compact { flex: 0 0 38px; width: 38px; height: 38px; padding: 8px; margin-top: auto; }
+.desktop-update-button.is-compact ~ .agent-navigation-user { margin-top: 0; }
+.desktop-update-message { padding: 4px 12px 8px; max-width: 260px; font-size: 12px; color: var(--ink-soft); }
+.desktop-update-toast { position: fixed; left: 60px; bottom: 64px; z-index: 1000; max-width: min(300px, calc(100vw - 76px)); padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--overlay-bg); color: var(--ink); box-shadow: var(--shadow); font-size: 12px; line-height: 1.45; pointer-events: none; }
+.agent-navigation-user .chat-sidebar-user-trigger { width: 38px; height: 38px; padding: 3px; display: grid; place-items: center; }
+.agent-navigation-user-icon, .agent-navigation-user-label { display: none; }
+.agent-navigation-user .chat-sidebar-user-trigger:hover { background: transparent; }
+.agent-navigation-user .chat-user-menu { left: calc(100% + 8px); bottom: 0; transform: none; animation: none; }
+.agent-navigation-item { position: relative; flex: 0 0 38px; width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 10px; background: transparent; color: var(--ink-soft); cursor: pointer; font: inherit; }
+.agent-navigation-item:hover { background: var(--hover); color: var(--ink); }
+.agent-navigation-item.is-active { background: var(--active); color: var(--ink); }
+.agent-navigation-icon { display: grid; place-items: center; width: 25px; height: 25px; }
+.agent-navigation-icon svg { width: 23px; height: 23px; }
+.agent-navigation-item--home .agent-navigation-icon svg { width: 21px; height: 21px; }
+.agent-navigation-item--home .agent-navigation-icon { position: relative; }
+.agent-navigation-unread-dot { position: absolute; top: -2px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: #e53935; box-shadow: 0 0 0 2px var(--sidebar-bg); }
+.agent-navigation-item--library .agent-navigation-icon svg { width: 22px; height: 22px; }
+.agent-navigation-label { position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%); padding: 7px 11px; border-radius: 9px; background: var(--overlay-bg); color: var(--ink); box-shadow: var(--shadow); font-size: 13px; white-space: nowrap; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .12s ease, visibility .12s ease; }
+.agent-navigation-item:hover .agent-navigation-label, .agent-navigation-item:focus-visible .agent-navigation-label { opacity: 1; visibility: visible; }
+/* 导航栏右缘拖拽手柄：hover 时 2px 竖条 dim-in 渐显，拖拽中常显；仅桌面精确指针（移动端在媒体查询里隐藏） */
+.agent-navigation-resizer { position: absolute; right: -5px; top: 0; bottom: 0; width: 10px; cursor: col-resize; z-index: 40; touch-action: none; }
+.agent-navigation-resizer::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%); background: rgba(31,39,51,.28); opacity: 0; transition: opacity .18s ease; }
+.agent-navigation-resizer:hover::after, .agent-navigation-sidebar.is-nav-dragging .agent-navigation-resizer::after { opacity: 1; }
+.agent-navigation-sidebar.is-expanded { box-sizing: border-box; flex-basis: var(--navigation-sidebar-width, 200px); width: var(--navigation-sidebar-width, 200px); align-items: stretch; padding-right: 8px; padding-left: 8px; }
+.agent-navigation-sidebar.is-expanded .agent-navigation-item { width: 100%; display: flex; justify-content: flex-start; gap: 10px; padding: 0 10px; text-align: left; }
+.agent-navigation-sidebar.is-expanded .agent-navigation-icon { flex: 0 0 25px; }
+.agent-navigation-sidebar.is-expanded .agent-navigation-label { position: static; display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; transform: none; padding: 0; background: none; color: inherit; box-shadow: none; opacity: 1; visibility: visible; transition: none; }
+.agent-navigation-sidebar.is-expanded .agent-navigation-user { align-self: stretch; flex-direction: row; align-items: center; min-width: 0; gap: 8px; padding: 0 10px 0 8px; border-top: 1px solid var(--line); }
+/* 头像按钮在折叠/展开两态都固定 38x38 居中，几何不变，切换时不上下跳动 */
+.agent-navigation-sidebar.is-expanded .agent-navigation-user .chat-sidebar-user-trigger { flex: 0 0 38px; width: 38px; height: 38px; padding: 3px; justify-items: center; box-sizing: border-box; }
+.agent-navigation-sidebar.is-expanded .agent-navigation-user .chat-sidebar-user-row { min-width: 0; }
+.agent-navigation-sidebar.is-expanded .agent-navigation-user-name { flex: 1 1 auto; min-width: 0; font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; border-radius: 8px; padding: 0 8px; }
+.agent-navigation-sidebar.is-expanded .agent-navigation-user-name:hover { background: transparent; }
+.agent-navigation-sidebar.is-expanded .agent-navigation-logout { box-sizing: border-box; flex: 0 0 36px; width: 36px; height: 38px; margin-left: auto; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--ink-soft); cursor: pointer; }
+.agent-navigation-sidebar.is-expanded .agent-navigation-logout:hover { background: transparent; color: var(--ink-soft); }
+.agent-navigation-sidebar.is-expanded .agent-navigation-logout svg { width: 19px; height: 19px; }
+.agent-navigation-sidebar.is-expanded .chat-user-menu-logout,
+.agent-navigation-sidebar.is-expanded .chat-user-menu-logout-sep { display: none; }
+.agent-navigation-page { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+.agent-navigation-page-head { height: 60px; flex: 0 0 auto; display: flex; align-items: center; padding: 0 24px; border-bottom: 1px solid var(--line); color: var(--ink); font-weight: 600; }
+.agent-navigation-page-body { min-height: 0; flex: 1; overflow: auto; padding: 24px; color: var(--ink); }
+.agent-content-frame { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; height: 100%; display: flex; align-items: stretch; }
+.agent-content-frame .chat-topbar, .agent-content-frame .agent-navigation-page-head { border-bottom: 0; }
+.agent-content-frame .chat-main { height: 100%; }
+.chat-shell.has-right-pane .chat-topbar-right > .chat-sidebar-toggle { position: fixed; top: 6px; right: 16px; z-index: 220; }
+.env-electron.chat-shell.has-right-pane .chat-topbar-right > .chat-sidebar-toggle { top: 52px; }
+/* toggle 悬浮在右栏顶部：tab 内容区收窄到按钮左侧，不与 toggle 重叠；
+   满宽分割线由 .chat-right-inner::after 绘制。 */
+.chat-shell.has-right-pane .work-panel-tabs { width: calc(100% - 50px); box-sizing: border-box; }
+.chat-shell.has-navigation:not(.navigation-home) .chat-pane-left { display: none; }
+.chat-shell.has-navigation .chat-pane-left.is-hover { left: 0; }
+.chat-mobile-home-back { display: none; }
+.chat-mobile-sidebar-profile { display: none; }
+.env-electron .agent-navigation-sidebar { padding-top: 46px; }
+.env-electron.has-navigation .agent-navigation-sidebar { border-right: 0; }
+@media (max-width: 767.98px) {
+  .chat-shell.has-navigation {
+    --mobile-navigation-height: calc(57px + max(4px, env(safe-area-inset-bottom)));
+    flex-direction: column;
+  }
+  .chat-shell.has-navigation .agent-content-frame {
+    height: auto; min-height: 0; margin-bottom: var(--mobile-navigation-height);
+  }
+  .chat-shell.has-mobile-conversation .agent-content-frame { margin-bottom: 0; }
+  .chat-shell.has-mobile-conversation .agent-navigation-sidebar { display: none; }
+  /* 会话页的左栏由独立列表页承载，不能沿用保存的抽屉展开状态覆盖消息。 */
+  .chat-shell.has-mobile-conversation .chat-pane-left,
+  .chat-shell.has-mobile-list .chat-pane-right { display: none; }
+  .chat-shell.has-mobile-list .chat-mobile-backdrop,
+  .chat-shell.has-mobile-conversation:not(.has-right-pane) .chat-mobile-backdrop { display: none; }
+  .chat-shell.has-mobile-list .chat-pane-left {
+    position: relative; top: auto; bottom: auto; left: auto; z-index: auto;
+    flex: 1 1 auto; width: 100%; height: 100%; transform: none;
+    box-shadow: none; transition: none;
+  }
+  .chat-shell.has-mobile-list .chat-pane-left .chat-sidebar-inner {
+    width: 100%; visibility: visible;
+  }
+  .chat-shell.has-mobile-list .chat-main { display: none; }
+  .chat-shell.has-mobile-list .cowork-panel { display: none; }
+  .chat-shell.has-mobile-conversation .cowork-panel { height: var(--mobile-viewport-height, 100dvh); }
+  .chat-shell .chat-sidebar-inner > .chat-sidebar-user,
+  .chat-shell.has-mobile-list .chat-loading-state--sidebar { display: none; }
+  .chat-shell.has-mobile-conversation .chat-topbar-left > .chat-sidebar-toggle { display: none; }
+  .chat-shell .chat-sidebar-head {
+    position: relative; justify-content: flex-start; align-items: center;
+  }
+  /* 顶部 bar 内（头像 / 加号）垂直居中对齐 */
+  .chat-shell .chat-mobile-sidebar-new,
+  .chat-shell .chat-mobile-sidebar-profile {
+    align-self: center; margin-top: 0; margin-bottom: 0;
+  }
+  .chat-shell .chat-mobile-sidebar-profile {
+    position: absolute; left: 16px; top: 10px;
+    display: block; order: 1; flex: 0 0 44px; width: 44px; height: 44px; margin-left: 0;
+  }
+  .chat-shell .chat-mobile-sidebar-new {
+    display: grid; place-items: center; order: 2; flex: 0 0 auto; margin-left: auto;
+    width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px;
+    background: transparent; color: var(--ink); cursor: pointer;
+    transition: background .15s ease, transform .08s ease;
+  }
+  .chat-shell .chat-mobile-sidebar-new:hover { background: var(--hover); }
+  .chat-shell .chat-mobile-sidebar-new:active { background: var(--active); transform: scale(.94); }
+  /* 沿用 PC 的圆圈加号图标，仅放大，作为主按钮 */
+  .chat-shell .chat-mobile-sidebar-new .chat-sidebar-new-icon {
+    width: 24px; height: 24px; padding: 3px; border: 1.8px solid currentColor;
+    border-radius: 50%; box-sizing: border-box; fill: none;
+    stroke: currentColor; stroke-width: 2.4; stroke-linecap: round;
+  }
+  .chat-shell .chat-sidebar-newrow { display: none; }
+  /* newrow 隐藏后，搜索入口随「新建对话」一起落到头部 bar（同尺寸、同 hover 反馈） */
+  .chat-shell .chat-mobile-sidebar-search {
+    display: grid; place-items: center; order: 3; flex: 0 0 auto; margin-left: 0;
+    width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px;
+    background: transparent; color: var(--ink); cursor: pointer;
+    transition: background .15s ease, transform .08s ease;
+  }
+  .chat-shell .chat-mobile-sidebar-search:hover { background: var(--hover); }
+  .chat-shell .chat-mobile-sidebar-search:active { background: var(--active); transform: scale(.94); }
+  .chat-shell .chat-mobile-sidebar-search svg {
+    width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+  }
+  /* 移动端顶部 bar 不显示会话刷新 loading（PC 保留） */
+  .chat-shell .chat-loading-spinner { display: none; }
+  .chat-shell .chat-sidebar-head > .chat-sidebar-logo,
+  .chat-shell .chat-sidebar-head > .chat-sidebar-title,
+  .chat-shell .chat-sidebar-head > .chat-sidebar-appname { display: none; }
+  .chat-shell .chat-mobile-sidebar-profile .chat-sidebar-user {
+    display: block; width: 44px; height: 44px; margin: 0; padding: 0; border: 0;
+  }
+  .chat-shell .chat-mobile-sidebar-profile .chat-sidebar-user .chat-sidebar-user-trigger {
+    display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  }
+  .chat-shell .chat-mobile-sidebar-profile .chat-sidebar-user .chat-sidebar-user-row { display: flex; }
+  .chat-shell .chat-mobile-sidebar-profile .chat-sidebar-user-name { display: none; }
+  /* 展开态导航还会在头像按钮外渲染用户名和退出按钮；移动端头像位只容纳头像。 */
+  .chat-shell .chat-mobile-sidebar-profile .agent-navigation-user-name,
+  .chat-shell .chat-mobile-sidebar-profile .agent-navigation-logout { display: none; }
+  .chat-shell .chat-mobile-sidebar-profile .agent-navigation-user-icon,
+  .chat-shell .chat-mobile-sidebar-profile .agent-navigation-user-label { display: none; }
+  .chat-shell .chat-mobile-sidebar-profile .chat-sidebar-user .chat-user-menu {
+    top: calc(100% + 8px); bottom: auto; left: 0; right: auto; transform: none; animation: none;
+  }
+  .chat-shell.has-mobile-conversation .chat-mobile-home-back {
+    display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px;
+    padding: 0; border: 0; border-radius: 12px; background: transparent;
+    color: var(--ink); cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .chat-shell.has-mobile-conversation .chat-mobile-home-back svg { width: 24px; height: 24px; }
+  .agent-navigation-page-head { height: 64px; padding: 0 16px; }
+  .chat-shell.has-right-pane .chat-topbar-right > .chat-sidebar-toggle { top: 10px; right: 12px; }
+  /* 移动端 toggle 44px、右间距 12px：tab 收窄，满宽分割线由 inner 伪元素绘制。 */
+  .chat-shell.has-right-pane .work-panel-tabs { width: calc(100% - 56px); }
+  .chat-shell.has-navigation .chat-main,
+  .chat-shell.has-navigation .agent-navigation-page { height: 100%; min-width: 0; }
+  .chat-shell.has-navigation .agent-navigation-sidebar {
+    position: fixed; inset: auto 0 0; width: 100%; height: var(--mobile-navigation-height);
+    flex-direction: row; justify-content: space-around; align-items: stretch; gap: 0;
+    padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    border-right: 0; border-top: 1px solid var(--line); overflow: visible;
+  }
+  .chat-shell.has-navigation .agent-navigation-sidebar.is-expanded { width: 100%; }
+  .chat-shell.has-navigation .agent-navigation-sidebar.is-expanded .agent-navigation-item {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0;
+    text-align: center;
+  }
+  .chat-shell.has-navigation .agent-navigation-sidebar.is-expanded .agent-navigation-user { flex-direction: column; border-top: 0; }
+  .chat-shell.has-navigation .agent-navigation-logout { display: none; }
+  .chat-shell.has-navigation .agent-navigation-sidebar.is-expanded .chat-user-menu-logout { display: block; }
+  .chat-shell.has-navigation .agent-navigation-sidebar.is-expanded .chat-user-menu-logout-sep { display: block; }
+  .chat-shell.has-navigation .agent-navigation-item {
+    flex: 1 1 0; width: auto; min-width: 0; height: 52px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; border-radius: 10px;
+    font-size: var(--mobile-font-tab, 12px); line-height: 16px; -webkit-tap-highlight-color: transparent;
+  }
+  .chat-shell.has-navigation .agent-navigation-icon { width: 24px; height: 24px; }
+  .chat-shell.has-navigation .agent-navigation-label {
+    position: static; display: block; transform: none; padding: 0;
+    background: none; box-shadow: none; border-radius: 0;
+    color: inherit; font-size: inherit; line-height: inherit;
+    opacity: 1; visibility: visible; transition: none;
+  }
+  .chat-shell.has-navigation .desktop-update-button.is-compact { display: none; }
+  /* 移动端底部横向导航无拖拽折叠语义，隐藏右缘手柄 */
+  .agent-navigation-resizer { display: none; }
+  .chat-shell.has-navigation .agent-navigation-sidebar > .agent-navigation-user { display: none; }
+  .chat-shell.has-navigation .agent-navigation-user {
+    flex: 1 1 0; min-width: 0; margin: 0; display: grid; place-items: center;
+  }
+  .chat-shell.has-navigation .agent-navigation-user .chat-sidebar-user-trigger {
+    width: 100%; height: 52px; border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    color: var(--ink-soft); -webkit-tap-highlight-color: transparent;
+  }
+  .chat-shell.has-navigation .agent-navigation-user .chat-sidebar-user-row { display: none; }
+  .chat-shell.has-navigation .agent-navigation-user-icon {
+    display: grid; place-items: center; width: 24px; height: 24px;
+  }
+  .chat-shell.has-navigation .agent-navigation-user-icon svg { width: 23px; height: 23px; }
+  .chat-shell.has-navigation .agent-navigation-user-label { display: block; font-size: var(--mobile-font-tab, 12px); line-height: 16px; }
+  .chat-shell.has-navigation .agent-navigation-user .chat-sidebar-user-trigger[aria-expanded="true"] {
+    background: var(--active); color: var(--ink);
+  }
+  .chat-shell.has-navigation .agent-navigation-user .chat-user-menu {
+    left: auto; right: 0; bottom: calc(100% + 8px);
+    max-height: min(70dvh, 540px); overflow-y: auto;
+  }
+  .chat-shell.has-navigation .chat-mobile-sidebar-profile .agent-navigation-user .chat-sidebar-user-trigger {
+    width: 44px; height: 44px; padding: 0; display: grid; place-items: center;
+    background: transparent;
+  }
+  .chat-shell.has-navigation .chat-mobile-sidebar-profile .agent-navigation-user .chat-sidebar-user-row { display: flex; }
+  .chat-shell.has-navigation .chat-mobile-sidebar-profile .agent-navigation-user-icon,
+  .chat-shell.has-navigation .chat-mobile-sidebar-profile .agent-navigation-user-label { display: none; }
+  .chat-shell.has-navigation .chat-mobile-sidebar-profile .agent-navigation-user .chat-user-menu {
+    top: calc(100% + 8px); bottom: auto; left: 0; right: auto;
+  }
+  .chat-shell.has-navigation .chat-pane-left,
+  .chat-shell.has-navigation .chat-pane-left.is-hover { left: 0; }
+}
+
+.contacts-error button { border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); padding: 6px 12px; cursor: pointer; }
+.contacts-body { max-width: 1100px; width: 100%; margin: 0 auto; }
+.contacts-search { position: sticky; top: 0; z-index: 1; margin: 0 0 16px; padding: 4px 0; background: var(--bg); }
+.contacts-search-input { width: 100%; box-sizing: border-box; height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--hover-strong); color: var(--ink); font: inherit; outline: none; }
+.contacts-search-input::placeholder { color: var(--ink-soft); }
+.contacts-search-input:focus { border-color: var(--active); background: var(--bg); }
+.contacts-hierarchy-head { display: flex; align-items: baseline; gap: 12px; margin: 4px 0 12px; color: var(--ink); }
+.contacts-hierarchy-head strong { font-size: 20px; }
+.contacts-hierarchy-head > span { color: var(--ink-soft); font-size: 13px; }
+.contacts-breadcrumbs { display: flex; flex-wrap: wrap; gap: 2px; margin: -2px 0 14px; color: var(--ink-soft); font-size: 12px; }
+.contacts-breadcrumbs button { padding: 3px 4px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.contacts-breadcrumbs button:hover, .contacts-breadcrumbs button[aria-current="page"] { color: var(--ink); }
+.contacts-count { color: var(--muted, #777); font-size: 13px; margin: 20px 0 10px; }
+.contacts-list { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.contacts-departments { margin-top: 10px; }
+.contacts-department-row { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 72px; padding: 10px 16px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.contacts-department-row:first-child { border-top: 0; }
+.contacts-department-row:hover { background: var(--hover); }
+.contacts-department-count { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; background: var(--hover-strong); color: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+.contacts-department-arrow { color: var(--ink-soft); font-size: 22px; line-height: 1; }
+.contacts-load-more { display: block; width: 100%; padding: 14px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink-soft); font: inherit; cursor: pointer; }
+.contacts-load-more:hover { background: var(--hover); color: var(--ink); }
+.contacts-row { display: flex; align-items: center; gap: 14px; min-height: 72px; padding: 10px 16px; border-top: 1px solid var(--line); }
+.contacts-row:first-child { border-top: 0; }
+.contacts-avatar { --avatar-size: 42px; width: 42px; height: 42px; flex: 0 0 42px; border-radius: 50%; object-fit: cover; }
+.contacts-primary { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 4px; }
+.contacts-primary span { color: var(--muted, #777); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contacts-details { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; font-size: 13px; }
+.contacts-details a { color: var(--ink); text-decoration: none; }
+.contacts-details a:hover { text-decoration: underline; }
+.contacts-state { padding: 56px 16px; text-align: center; color: var(--muted, #777); }
+.contacts-error { color: #b33434; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.contacts-error strong { font-size: 16px; }
+.contacts-error p { max-width: 620px; margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .contacts-details { display: none; } }

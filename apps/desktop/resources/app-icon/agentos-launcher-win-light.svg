@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AgentOS Launcher 应用图标 · Windows 浅色版：全透明背景 ——
+     无圆面背景；两条对称 90° 弧线置于最外缘（r 450，dash = π·450/2 ≈ 707），
+     中心实心圆 r 130，起始角 -45°。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- 虚线轨道：两端对称 90° 弧（dash = π·450/2 ≈ 707），起始角 -45° -->
+  <circle cx="512" cy="512" r="450" fill="none" stroke="#26262A" stroke-width="46" stroke-linecap="round" stroke-dasharray="707 707" stroke-opacity="0.92" transform="rotate(-45 512 512)"/>
+  <!-- 核心 -->
+  <circle cx="512" cy="512" r="130" fill="#26262A"/>
+</svg>

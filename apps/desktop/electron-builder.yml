@@ -1,0 +1,101 @@
+# launcher 打包配置（macOS 为主，Windows 占位）
+#
+# 产物命名：Linger-x.x.x-arm64.dmg / Linger Setup x.x.x.exe
+# 与 OTA 多应用通道配合：上传到 launcher 通道（ota-releases/launcher/）
+#
+# 平台差异（由 scripts/build-launcher.mjs 通过 --win / --mac 控制）：
+#   macOS 免安装版 → linger-dist/mac-arm64/Linger.app
+#   macOS 安装包   → linger-dist/Linger-x.x.x-arm64.dmg
+asar: true
+asarUnpack:
+  - prototypes/wechat-window-cua/*.ps1
+  - "**/node_modules/ffmpeg-static/ffmpeg*"
+appId: com.turingflow.linger
+productName: Linger
+copyright: Copyright © 2026
+# launcher 无原生依赖需要编译，跳过 @electron/rebuild（避免联网拉头文件超时）
+npmRebuild: false
+directories:
+  output: release
+  buildResources: build
+
+# Pack only Electron main/preload/renderer code; .env stays editable outside the package.
+files:
+  - out/**
+  - prototypes/wechat-window-cua/**
+  - package.json
+  - "!**/.env"
+  - "!**/*.map"
+  - "!**/logs/**"
+  - "!**/release/**"
+  - "!**/native/**"
+  - "!**/node_modules/onnxruntime-node/bin/**"
+  # DSH plugins declare many runtime peer dependencies, which electron-builder's
+  # npm dependency walker does not collect from a workspace package.
+  - from: ../../node_modules/@deepseek-ai
+    to: node_modules/@deepseek-ai
+    filter:
+      - "**/*"
+
+# 原生二进制与图标：打包后位于 process.resourcesPath 根目录
+extraResources:
+  # Client configuration is bundled as-is and must contain no secrets.
+  - from: .env
+    to: .env
+  # macOS 原生工具（statusctl / wechat-*）
+  - from: resources/statusctl
+    to: statusctl
+  - from: resources/wechat-monitor
+    to: wechat-monitor
+  - from: resources/wechat-notifications
+    to: wechat-notifications
+  - from: resources/wechat-windowctl
+    to: wechat-windowctl
+  # agent-kit 源码直连：按源码目录定位的 schema.sql / 通知音 / 子脚本随包分发
+  - from: ../../packages/agent-kit/src
+    to: agent-kit-src
+  # 应用图标（渲染层读取）；排除本地旧 ico 备份目录，不打进安装包
+  - from: resources/app-icon
+    to: app-icon
+    filter:
+      - "!**/_backup/**"
+
+win:
+  icon: resources/app-icon/agentos-launcher-dark.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+mac:
+  icon: resources/app-icon/agentos-launcher-dark.icns
+  category: public.app-category.utilities
+  # 中文系统下 Finder / Dock / 菜单栏显示「灵儿」，英文系统仍为 Linger。
+  # macOS 只认 .app 包内的 lproj 本地化，Electron 本身没有应用名多语言能力。
+  extraResources:
+    - from: resources/zh_CN.lproj
+      to: zh_CN.lproj
+    - from: resources/zh-Hans.lproj
+      to: zh-Hans.lproj
+  # 内部测试包 ad hoc 签名，避免未签名 bundle 被判"已损坏"
+  identity: "-"
+  hardenedRuntime: false
+  target:
+    - target: dmg
+      arch:
+        - arm64
+
+# electron-builder 要求固定版本（range 无法下载平台二进制）
+electronVersion: 44.7.0
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Linger
+  deleteAppDataOnUninstall: false
+
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/

@@ -1,0 +1,2547 @@
+:root {
+  --home-frame-width: min(600px, calc(100vw - 48px));
+  /* Dock 的预留区 = 胶囊高度 + 距屏幕底边 8px。
+     胶囊高度 = 图标 60（Dock.tsx 的 DOCK_ICON_SIZE）+ 上下 padding 8×2 + 边框 2 = 78。 */
+  --dock-reserved-height: 86px;
+  --bg: #101014;
+  --text: #f5f5f7;
+  --text-dim: rgba(255, 255, 255, 0.55);
+  --text-faint: rgba(255, 255, 255, 0.32);
+  --accent: #0a84ff;
+  --dock-bg: var(--desk-card-bg, rgba(28, 28, 28, 0.58));
+  --dock-bg-light: rgba(255, 255, 255, 0.16);
+  --card-bg: rgba(30, 30, 36, 0.55);
+  --card-border: rgba(255, 255, 255, 0.14);
+  --panel-bg: rgba(24, 24, 30, 0.78);
+  --radius: 14px;
+  --font: -apple-system, "SF Pro Text", "PingFang SC", "Helvetica Neue", system-ui, sans-serif;
+  /* agent-kit 输入卡片变量（深色语境） */
+  --panel: rgba(30, 30, 36, 0.92);
+  --line: rgba(255, 255, 255, 0.16);
+  --ink: #f5f5f7;
+  --ink-soft: rgba(255, 255, 255, 0.55);
+  --send-bg: #2f6bff;
+  --send-ink: #ffffff;
+  /* 能力答复页语义变量（跟随 data-skin 主题，见下方 8 套取值；subtle 基调：深底浅字/浅底深字 + 主题轻微染色） */
+  --cap-card-bg: #1c1c1e;
+  --cap-title: #ffffff;
+  --cap-sub: #8e8e93;
+  --cap-text: #98989f;
+  --cap-line: #3a3a3c;
+}
+
+/* 能力答复页 · 8 套主题配色（data-skin 由 state.tsx 写入：浅色/深色外观 + 6 种壁纸皮肤） */
+:root[data-skin="light"] {
+  --cap-card-bg: #f2f2f7;
+  --cap-title: #1c1c1e;
+  --cap-sub: #6e6e73;
+  --cap-text: #8e8e93;
+  --cap-line: rgba(28, 28, 30, 0.18);
+}
+:root[data-skin="dark"] {
+  --cap-card-bg: #1c1c1e;
+  --cap-title: #ffffff;
+  --cap-sub: #8e8e93;
+  --cap-text: #98989f;
+  --cap-line: #3a3a3c;
+}
+/* 石墨夜色 */
+:root[data-skin="wp1"] {
+  --cap-card-bg: #1b1b1e;
+  --cap-title: #f5f5f7;
+  --cap-sub: #86868b;
+  --cap-text: #92929a;
+  --cap-line: #35353a;
+}
+/* 冰蓝晨光：浅底 + 冷灰文字 */
+:root[data-skin="wp2"] {
+  --cap-card-bg: #eef1f6;
+  --cap-title: #1c2733;
+  --cap-sub: #5f7085;
+  --cap-text: #74859a;
+  --cap-line: rgba(28, 39, 51, 0.22);
+}
+/* 深林绿影：深底带绿倾向 */
+:root[data-skin="wp3"] {
+  --cap-card-bg: #17211b;
+  --cap-title: #eaf3ec;
+  --cap-sub: #7fa08a;
+  --cap-text: #8fa898;
+  --cap-line: #33453a;
+}
+/* 熔火龙境：暖褐深底 */
+:root[data-skin="wp4"] {
+  --cap-card-bg: #241a16;
+  --cap-title: #f6e9d6;
+  --cap-sub: #c7ad98;
+  --cap-text: #b99d86;
+  --cap-line: #4a3527;
+}
+/* 静海听潮：冷蓝深底 */
+:root[data-skin="wp5"] {
+  --cap-card-bg: #12222f;
+  --cap-title: #e3f6ff;
+  --cap-sub: #9bbcc9;
+  --cap-text: #8fb0be;
+  --cap-line: #2c4a59;
+}
+/* 鎏金华庭：古金深底 */
+:root[data-skin="wp6"] {
+  --cap-card-bg: #221c14;
+  --cap-title: #f4e5c1;
+  --cap-sub: #bea77e;
+  --cap-text: #b09a72;
+  --cap-line: #463a24;
+}
+
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+input,
+textarea {
+  user-select: text;
+  font-family: var(--font);
+}
+
+button {
+  font-family: var(--font);
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- 桌面 ---------- */
+
+.desktop {
+  position: fixed;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--bg);
+}
+
+/* Electron's hidden macOS title bar needs an explicit native drag region. */
+.mac-window-drag-bar {
+  position: fixed;
+  top: 0;
+  left: 84px;
+  right: 0;
+  height: 26px;
+  z-index: 10000;
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+.desktop-light-wallpaper {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+:root[data-theme="light"] /* Electron's hidden macOS title bar needs an explicit native drag region. */
+.mac-window-drag-bar {
+  position: fixed;
+  top: 0;
+  left: 84px;
+  right: 0;
+  height: 26px;
+  z-index: 10000;
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+/* 浅色主题才把浅色壁纸叠上来；这两条原来丢了 :root[data-theme="light"] 前缀，
+   于是深色主题下 default-light.svg 仍然盖住 default-dark.svg，⌘2 看起来「没生效」。 */
+:root[data-theme="light"] .desktop-light-wallpaper { opacity: 1; }
+:root[data-theme="light"] .desktop:has(.desktop-light-wallpaper)::after { display: none; }
+
+.desktop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 0%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.28) 100%);
+  pointer-events: none;
+}
+
+.desktop-body {
+  position: absolute;
+  inset: 0;
+  padding: 24px 24px 108px;
+  pointer-events: none;
+}
+
+.desktop-body > * {
+  pointer-events: auto;
+}
+
+/* ---------- 状态栏（自绘 macOS 菜单栏的右侧一簇） ---------- */
+
+/* 高度要和 desktopGrid 的 MENU_BAR_HEIGHT 保持一致（桌面卡片的顶边按它下移）。 */
+.status-bar {
+  --status-bar-shadow: rgba(0, 0, 0, 0.45);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 26px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 15px;
+  padding: 0 16px;
+  font: 500 13px/1 var(--font);
+  color: var(--text);
+  text-shadow: 0 1px 1.5px var(--status-bar-shadow);
+  pointer-events: none; /* 暂时没有交互：别挡住桌面的空白区点击 */
+  user-select: none;
+}
+:root[data-theme="light"] .status-bar { --status-bar-shadow: rgba(255, 255, 255, 0.7); }
+
+.status-bar-ime {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 12px;
+  font-weight: 600;
+  text-shadow: none;
+}
+:root[data-theme="light"] .status-bar-ime { background: rgba(0, 0, 0, 0.08); }
+
+.status-bar-icon { display: block; width: 17px; height: 17px; }
+
+.status-bar-battery { display: inline-flex; align-items: center; gap: 4px; }
+.status-bar-battery-icon { display: block; width: 25px; height: 13px; }
+.status-bar-battery-text { font-size: 12.5px; font-variant-numeric: tabular-nums; opacity: 0.92; }
+/* ≤10% 用警示色（和 macOS 低电量红一致）；充电闪电走黑白灰色系（同 macOS 菜单栏），
+   固定取值、不随低电量警示色联动 */
+.status-bar-battery.is-low { color: #ff6a5e; }
+.status-bar-bolt { fill: #9a9aa0; }
+:root[data-theme="light"] .status-bar-bolt { fill: #55565a; }
+
+.status-bar-clock { font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+
+/* ---------- 壁纸选择器 */
+.wallpaper-picker {
+  position: fixed;
+  top: 48px;
+  right: 18px;
+  width: 300px;
+  background: var(--panel-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  backdrop-filter: blur(26px);
+  -webkit-backdrop-filter: blur(26px);
+  padding: 14px;
+  z-index: 80;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.wallpaper-picker h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.wp-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.wp-swatch {
+  height: 44px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s;
+}
+
+.wp-swatch:hover {
+  transform: scale(1.05);
+}
+
+.wp-swatch.active {
+  border-color: #fff;
+}
+
+.wp-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.wp-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  font-size: 12px;
+  transition: background 0.15s;
+}
+
+.wp-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ---------- Dock ---------- */
+
+/*
+ * 每扇聊天窗的固定承载层（.dock-zone 的唯一子节点之一）：多窗口预览要把窗口节点
+ * 搬进缩略图（见 dock/homeThumb.ts），React 必须始终认识一个**没被搬走**的父节点，
+ * 否则别的窗口插入/重排时会拿被搬走的节点当锚点，抛 NotFoundError。
+ * display: contents —— 不生成盒子，窗口的定位/层级完全不受影响。
+ */
+.window-slot {
+  display: contents;
+}
+.dock-zone {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--dock-reserved-height);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.dock {
+  position: relative;
+  z-index: 1000;
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  /* 图标 60（Dock.tsx 的 DOCK_ICON_SIZE）+ 上下 padding 8 + 1px 边框 = 胶囊 78 高 */
+  padding: 8px;
+  border-radius: 999px;
+  background: var(--dock-bg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  max-width: calc(100vw - 24px);
+  /* 默认不裁剪：999px 圆角的胶囊一旦 overflow: hidden，挂在图标右上角的角标
+     （好友邀请数）会被圆角弧线切掉一块。溢出滚动只在真的放不下时才开，
+     由 Dock.tsx 量 scrollWidth/clientWidth 加 .is-overflowing，那时宁可裁角标也要能滚。 */
+  overflow: visible;
+}
+
+/* 图标多到超过 max-width 时才退回横向滚动（此时角标会被裁，可接受）。 */
+.dock.is-overflowing {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.dock::-webkit-scrollbar {
+  display: none;
+}
+.dock {
+  scrollbar-width: none;
+}
+
+/* ============ 自动隐藏 Dock（macOS 同款） ============
+   开启后根节点挂 .dock-auto-hide：
+   · 把 --dock-reserved-height 归零，桌面网格与最大化窗口都不再给 Dock 留位；
+   · Dock 默认 translateY 到屏幕外，鼠标贴近底边（或悬停 Dock 本身）才滑回，动画对齐 macOS。 */
+:root.dock-auto-hide {
+  --dock-reserved-height: 0px;
+}
+.dock.dock-auto-hide {
+  transition: transform 260ms cubic-bezier(.2, .8, .2, 1);
+  will-change: transform;
+}
+.dock.dock-auto-hide.is-hidden {
+  transform: translateY(120%);
+  pointer-events: none;
+}
+.dock.dock-auto-hide.is-revealed {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+/* 自动隐藏时最大化窗口占满整屏（含原 Dock 所在空间），输入卡贴近底边。 */
+:root.dock-auto-hide .quick-input.focus-mode.window-maximized {
+  height: 100vh;
+}
+:root.dock-auto-hide .quick-input.focus-mode.window-maximized .chat-shell.is-launcher .chat-main:not(.is-empty) .chat-main-inner {
+  margin-bottom: 16px;
+}
+:root.dock-auto-hide .quick-input.focus-mode.window-maximized .chat-shell.is-launcher .chat-main.is-empty .chat-main-inner {
+  bottom: 16px;
+}
+
+.dock-separator {
+  width: 1px;
+  height: 46px;
+  margin: 0 3px 6px;
+  background: rgba(255, 255, 255, 0.18);
+  align-self: flex-end;
+}
+
+.dock-item {
+  position: relative;
+  z-index: 81;
+  /* 宽比图标多 2px，给左右一点余量；高度等于图标，配合 dock 的 align-items: flex-end */
+  width: 62px;
+  height: 60px;
+  flex: 0 0 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 26px;
+}
+
+.dock-item .icon-wrap,
+.dock-drop-slot .icon-wrap,
+.dock-drag-ghost .icon-wrap {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+/* 图标投影统一挂在 .dock-item 这一层（也就是 mask 之外）。
+   filter 先于 mask 生效，投影若写在 .icon-wrap 上，落在圆形渐隐透明区里的那部分会被一起裁掉 ——
+   结果只有不套 mask 的 Home 看得出浮起感，其它图标看着是平的。
+   放到外层后：图标先被 mask / 溢出裁过，再整体投影，Dock 上所有项的阴影才一致。 */
+.dock-item,
+.dock-drop-slot {
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.35));
+}
+
+/* 松手那一刻预览格必须「当帧」收掉：真图标已经在同一帧占住这个位置了。
+   如果还按 200ms 过渡收，两者会同时占宽，整个胶囊先胀大再缩回 —— 看着就是整条 Dock 闪一下。
+   （拖动过程中保留过渡，槽位展开/换边才有滑动的感觉。） */
+.dock:not(.is-dragging-domain) .dock-drop-slot { transition: none; }
+
+.dock-domain-item {
+  appearance: none;
+  color: inherit;
+  padding: 0;
+  border: none;
+  animation: dock-pin-in 260ms cubic-bezier(.2, .8, .2, 1) both;
+  transition: transform 180ms cubic-bezier(.2, .8, .2, 1);
+  touch-action: none;
+}
+/* hover 不做任何视觉变化：既不加底色、也不提亮图标（macOS Dock 就是这样）。
+   唯一的悬停反馈是上方那条名字气泡 —— 见 .dock-tooltip。 */
+/* 拖动中：Dock 上这一格变成「原位占位」，图标淡出、尺寸不变。
+   淡出必须挂在内层 .icon-wrap 上 —— .dock-domain-item 自己的 opacity 会被
+   dock-pin-in 关键帧的 animation-fill-mode: both 覆盖（动画声明优先于普通声明），
+   写在上层是无效的（之前就是这样，一直没淡下去）。 */
+.dock-domain-item.is-dragging { transform: none; }
+.dock-domain-item.is-dragging .icon-wrap { opacity: .35; }
+.dock-domain-item img,
+.dock-drop-slot img,
+.dock-drag-ghost img { display: block; width: 70px; height: 70px; max-width: none; object-fit: contain; }
+/* 钉钉图标改为与图标底等大（60px），图片精确填满圆形容器，
+   内容位置完全由图片自身决定，规避浏览器对溢出网格项的偏移问题。 */
+.dock-domain-item[data-domain="dingtalk"] img,
+.dock-drop-slot[data-domain="dingtalk"] img,
+.dock-drag-ghost[data-domain="dingtalk"] img { width: 60px; height: 60px; }
+/* 飞书图标同样改为圆形（#7b5cff 圆底 + 白色飞鸟剪影），等大填满容器 */
+.dock-domain-item[data-domain="feishu"] img,
+.dock-drop-slot[data-domain="feishu"] img,
+.dock-drag-ghost[data-domain="feishu"] img { width: 60px; height: 60px; }
+/* 微信图标同为圆形（官方图形，渲染好的透明底 PNG），等大填满容器 */
+.dock-domain-item[data-domain="wechat"] img,
+.dock-drop-slot[data-domain="wechat"] img,
+.dock-drag-ghost[data-domain="wechat"] img { width: 60px; height: 60px; }
+/* 数域/应用图标的圆形边缘与 dock 之间做淡淡的渐隐蒙版，
+   避免纯色圆边（如钉钉纯蓝）贴住深色 dock 的硬边感；Home 主按钮不参与。 */
+.dock-domain-item .icon-wrap,
+.dock-drop-slot .icon-wrap,
+.dock-drag-ghost .icon-wrap {
+  mask-image: radial-gradient(circle at center, #000 0%, #000 76%, rgba(0, 0, 0, 0.88) 88%, transparent 100%);
+  -webkit-mask-image: radial-gradient(circle at center, #000 0%, #000 76%, rgba(0, 0, 0, 0.88) 88%, transparent 100%);
+}
+/* 次级图标整体降饱和、略压亮度，让 Home（唯一满血金属金）成为视觉主角 */
+.dock-domain-item .icon-wrap {
+  filter: saturate(0.56) brightness(0.9);
+}
+
+/* 但「设置」是透明底的剪影图形（齿轮的齿尖就是图形边界，外面本来全透明），
+   不能套这层圆形渐隐：齿尖会被抹成半透明，轮廓发虚、还裹上一层灰边。
+   同时要放开圆形容器的裁剪（overflow/border-radius 是给 70px 溢出 PNG 用的），
+   否则齿尖顶到 60px 边界时会被圆角切出平口。 */
+.dock-domain-item[data-domain="settings"] .icon-wrap,
+.dock-drop-slot[data-domain="settings"] .icon-wrap,
+.dock-drag-ghost[data-domain="settings"] .icon-wrap {
+  mask-image: none;
+  -webkit-mask-image: none;
+  overflow: visible;
+  border-radius: 0;
+}
+/* 数域入口同样是圆形图标（Dock 上所有图标都圆），只要和数域一样的边缘渐隐。
+   它不参与「次级图标降饱和」：入口和 Home 一样是主入口。 */
+.dock-domain-entry .icon-wrap,
+.dock-drag-ghost[data-domain="domains"] .icon-wrap {
+  mask-image: radial-gradient(circle at center, #000 0%, #000 76%, rgba(0, 0, 0, 0.88) 88%, transparent 100%);
+  -webkit-mask-image: radial-gradient(circle at center, #000 0%, #000 76%, rgba(0, 0, 0, 0.88) 88%, transparent 100%);
+}
+@keyframes dock-pin-in {
+  from { opacity: 0; transform: translateY(-18px) scale(.72); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 从「选择数域」拖进来、落点预览已经画过的那一格：真图标直接接上，不放入场动画，
+   否则满尺寸的预览会先消失、再从 72% 长出来，看着像闪了一下。 */
+.dock-domain-item.landed-in { animation: none; }
+
+.dock-drop-slot {
+  position: relative;
+  width: 0;
+  height: 60px;
+  flex: 0 0 auto;
+  margin-left: -6px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  opacity: 0;
+  transition: width 200ms cubic-bezier(.2, .8, .2, 1), margin 200ms ease, opacity 160ms ease;
+}
+.dock-drop-slot.is-target {
+  width: 62px;
+  margin-left: 0;
+  opacity: 1;
+}
+.dock-drop-slot .icon-wrap { opacity: .65; }
+
+.dock-drag-ghost {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  /* 不加 scale：幽灵图标要和 Dock 里那一格**完全同尺寸**（60px），
+     一按下去就变大会让人觉得"图标被拎起来了"，和 macOS 的手感相反。 */
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  filter: drop-shadow(0 14px 20px rgba(0, 0, 0, .4));
+}
+.dock-drag-ghost.over-dock { transform: translate(-50%, -55%) scale(.94); }
+.dock-drag-ghost.remove-target { transform: translate(-50%, -50%) scale(.82); }
+
+/* 两段对称弧线作为一层轨道同向旋转；壁纸保持静态。 */
+.dock-primary-icon .ask-orbit-outer {
+  transform-box: view-box;
+  transform-origin: center;
+  transform: rotate(-45deg);
+}
+
+.dock-primary-icon .ask-core,
+.dock-primary-icon .ask-stop-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ask-breathe 4.6s ease-in-out infinite;
+}
+
+@keyframes ask-breathe {
+  0%, 100% { transform: scale(1); opacity: .88; }
+  50% { transform: scale(1.09); opacity: 1; }
+}
+
+/* ── Home 主按钮：金属「光盘」质感（品牌主角，不改极简轨道标记形状）──────────
+   仅作用于 gold 动态壁纸（wp6 鎏金华庭）；
+   其他壁纸/主题（wp1~wp5、light、dark）不套用，回退到 AskIcon 默认配色
+   （实心盘面 + 轨道弧 + 中心点）。
+   金属盘由 ::before 画在标记背后；SVG 原本那块实心暗色圆盘改为透明，让金属盘透出。 */
+:root[data-skin="wp6"] .dock-primary-icon {
+  position: relative;
+  isolation: isolate;
+}
+:root[data-skin="wp6"] .dock-primary-icon > svg > circle:not([class]) {
+  fill: transparent;
+}
+:root[data-skin="wp6"] .dock-primary-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    /* CD 数据轨道：稀疏同心环（光盘签名），间距拉大到 6px → 白色圆圈更少 */
+    repeating-radial-gradient(circle at 50% 50%,
+      rgba(255, 255, 255, 0.12) 0, rgba(255, 255, 255, 0.12) 0.75px,
+      transparent 0.75px, transparent 6px),
+    /* 虹彩金属扫光（光盘反光） */
+    conic-gradient(from 208deg,
+      #fff3c8 0deg, #f3c258 40deg, #b9801f 95deg, #fff3c8 150deg,
+      #e9b441 210deg, #8a5d12 270deg, #fff3c8 330deg, #fff3c8 360deg),
+    /* 轻微金属球面：弱高光，避免变成珍珠球 */
+    radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.22), transparent 52%);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.38),
+    inset 0 2px 6px rgba(255, 255, 255, 0.4),
+    inset 0 -5px 10px rgba(86, 52, 8, 0.55),
+    0 3px 9px rgba(0, 0, 0, 0.5);
+}
+/* 轨道标记：深棕雕刻感（非纯黑），加粗以在金盘上清晰可读；极淡白边让其从光盘纹路上"浮"出来 */
+:root[data-skin="wp6"] .dock-primary-icon svg { filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.5)); }
+:root[data-skin="wp6"] .dock-primary-icon .ask-orbit-outer { stroke: rgba(47, 29, 4, 0.9); stroke-width: 3.5; }
+:root[data-skin="wp6"] .dock-primary-icon .ask-core { fill: rgba(47, 29, 4, 0.9); r: 4.4; }
+/* 运行中停止方块：与中心点同款深棕雕刻填充（金盘上淡金方块会看不清），金色盘上清晰可读 */
+:root[data-skin="wp6"] .dock-primary-icon .ask-stop-core { fill: rgba(47, 29, 4, 0.9); }
+
+/* ── Home 圆钮上的语音声波 ──────────────────────────────────────────
+   按住 Windows 右 Alt / macOS Option 录音时：圆盘外缘一圈细竖线，每根线的**根部钉在
+   圆周上**，线头朝圆心伸出去（从外向内生长）；长度随麦克风音量起伏；
+   整圈竖线自带旋转且与中间光环反向；圆盘外缘一圈辉光随音量呼吸。
+   —— 自身裁成圆形（overflow:hidden + border-radius:50%），所以竖线旋转 /
+   辉光都不会撑破圆钮、不会在 dock 上造成横向滚动条（dock 的滚动条本身就隐藏）。 */
+.home-voice-wave {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  /* 略大于圆盘（60px），让竖线能「往外拓」、探出盘缘一点；dock 滚动条已隐藏，不会因此出横条。 */
+  width: 65px;
+  height: 65px;
+  border-radius: 50%;
+  overflow: hidden;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.home-voice-wave.is-active { opacity: 1; }
+
+/* 外围辉光：一张径向渐变圆盘，贴在圆钮外缘。
+   参考图里辉光是"紧贴盘边的一圈亮蓝"。亮度/模糊由 JS 实时改，不再用 scale，
+   避免把元素撑大、撑破圆钮（之前正是 scale 撑出横向滚动条的元凶）。 */
+.home-voice-wave-glow {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    transparent 46%,
+    color-mix(in srgb, var(--home-wave-glow, #4f8fff) 85%, transparent) 56%,
+    color-mix(in srgb, var(--home-wave-glow, #4f8fff) 55%, transparent) 70%,
+    color-mix(in srgb, var(--home-wave-glow, #4f8fff) 20%, transparent) 86%,
+    transparent 100%
+  );
+  opacity: .16;
+  will-change: opacity, filter;
+}
+
+/* 竖线层：整体绕圆心旋转（JS 每帧写 rotate，与中间光环反向）。 */
+.home-voice-wave-bars {
+  position: relative;
+  width: 47px;
+  height: 47px;
+  will-change: transform;
+}
+
+/* 外层：把每根线绕圆心转到自己的角度（角度由 JS 写在 style.transform 里）。 */
+.home-voice-wave-bar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+}
+
+/* 内层：真正被 scaleY 拉伸的那根竖线。
+   高 MAX_LENGTH、以中心为 transform 原点；JS 每帧写
+   translateY + scaleY，把线的外端钉在圆周、内端朝圆心伸。宽度由 JS 传入。 */
+.home-voice-wave-bar > i {
+  position: absolute;
+  left: -1px;
+  top: -5px;
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--home-wave-color, #f1f2f4);
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-voice-wave { transition: none; }
+  .home-voice-wave-bars { will-change: auto; }
+  .home-voice-wave-bar > i { will-change: opacity; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-primary-icon .ask-core,
+  .dock-primary-icon .ask-stop-core,
+  .dock-domain-item { animation: none; }
+  .dock-drop-slot { transition: none; }
+}
+
+/* Dock 中所有应用共用的运行指示点。 */
+.dock-focus-indicator {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: #c8cbd1;
+  pointer-events: none;
+}
+:root[data-theme="light"] .dock-focus-indicator { background: #66676a; }
+
+/* Home 的任务数量覆盖底部运行指示点。 */
+.dock-badge-running {
+  position: absolute;
+  left: 50%;
+  /* dock 的 padding 收 6px（overflow-y: hidden 会裁掉超出的部分），
+     角标最多只能向外露 6px，再大就会被切掉一条边。 */
+  bottom: -6px;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side at center, rgba(10, 10, 14, .75) 0%, rgba(10, 10, 14, 0) 100%);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.dock-running-count {
+  position: relative;
+  line-height: 1;
+}
+
+/* ---------- Home 多窗口预览（收起 ≥2 扇 chat 后点 Home 弹出） ----------
+   一条横向的缩略图条，压在所有虚拟窗口之上、贴着 Dock 上沿。点缩略图 = 还原那个窗口；
+   左上角那颗关闭按钮 = 真关掉它。视觉上就是几扇「小窗口」并排，不是一堆圆角卡片。 */
+.home-switcher-backdrop {
+  position: fixed;
+  /* 只压 Dock 以上的桌面区：Dock 本身保持清晰、可点（点别的图标、再点一次 Home 都照常生效）。 */
+  inset: 0 0 calc(var(--dock-reserved-height) + 4px) 0;
+  z-index: 1200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 24px 12px;
+  background: rgba(0, 0, 0, .12);
+  /* 指针全程穿透：收起浮层靠 document 上的 pointerdown（见 HomeChatSwitcher），
+     靠遮罩接点击会把 Dock 一起挡住。 */
+  pointer-events: none;
+  animation: home-switcher-fade 140ms ease both;
+}
+.home-switcher {
+  /* 缩略图卡的配色（跟主题走，不跟壁纸皮肤走：缩略图里装的是真窗口，卡片只是相框）。 */
+  --home-switcher-thumb-bg: #17171b;
+  --home-switcher-thumb-edge: rgba(255, 255, 255, .12);
+  /* 外层那圈「整条预览带」的底板：半透明，底下的窗口/桌面要透出来。 */
+  --home-switcher-panel-bg: rgba(24, 24, 28, .42);
+  --home-switcher-panel-edge: rgba(255, 255, 255, .14);
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  max-width: min(92vw, 1160px);
+  padding: 8px;
+  border-radius: 18px;
+  /* 半透明底板 + 毛玻璃：既把几扇小窗口拢成一组，又不把桌面糊掉。 */
+  background: var(--home-switcher-panel-bg);
+  border: 1px solid var(--home-switcher-panel-edge);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .34);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+  overflow-x: auto;
+  overflow-y: hidden;
+  pointer-events: auto;
+  animation: home-switcher-in 180ms cubic-bezier(.2, .8, .2, 1) both;
+}
+:root[data-theme="light"] .home-switcher {
+  --home-switcher-thumb-bg: #fbfbfa;
+  --home-switcher-thumb-edge: rgba(28, 28, 30, .12);
+  --home-switcher-panel-bg: rgba(250, 249, 246, .5);
+  --home-switcher-panel-edge: rgba(28, 28, 30, .12);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .16);
+}
+/*
+ * 卡片 = 一扇小窗口的相框：顶部一条**不缩放**的标题栏（标题 + 状态，缩到 1/3 的 11px
+ * 字根本没法看），下面是把真窗口整体 scale 之后的画面。
+ * 宽度固定、高度取父级的 --thumb-card-h：**所有卡片尺寸完全一致**，与窗口自身的高矮无关。
+ */
+.home-switcher-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 220px;
+  height: var(--thumb-card-h, 320px);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  outline: none;
+  /* --home-switcher-card-bg 由 homeThumb.ts 写成「这扇窗口的真实底色」，没探到时回退主题色。 */
+  background: var(--home-switcher-card-bg, var(--home-switcher-thumb-bg));
+  border: 1px solid var(--home-switcher-card-edge, var(--home-switcher-thumb-edge));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+}
+/* hover：描边换成主题强调色（只变颜色，**宽度不变、不位移** —— translateY(-3px) 会让整条预览带像在抖），
+   外面再套一圈很淡的同色光，一眼能看出「松手还原的是这一扇」。 */
+.home-switcher-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 82%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 10px 26px rgba(0, 0, 0, .42);
+}
+/* 键盘焦点（打开浮层时默认落在第一张）：用 outline + 负偏移画在**卡片内侧**，
+   不往外长 —— 否则一打开就有一张卡看起来像「卡住的 hover」，还把面板内边距挤得没缝。
+   （不能用 inset box-shadow：卡片里的窗口把整块内容铺满了，会盖住它。） */
+.home-switcher-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 46%, transparent);
+  outline-offset: -2px;
+}
+/* 标题栏：左边给关闭按钮留位（那颗是 18px 的浮层按钮），右边是状态词。 */
+.home-switcher-head {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 26px;
+  border-bottom: 1px solid var(--home-switcher-card-edge, var(--home-switcher-thumb-edge));
+  /* 标题栏跟窗口底色同源、压暗一点点：换了皮肤之后不会出现「蓝色标题栏 + 棕色窗口」的色差。 */
+  background: color-mix(in srgb, var(--home-switcher-card-bg, var(--home-switcher-thumb-bg)) 92%, #000);
+}
+.home-switcher-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  /* 用窗口底色算出来的墨色：深色皮肤 + 浅色主题时也不会「白字压白窗」。 */
+  color: var(--home-switcher-head-ink, var(--text));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-switcher-state {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--home-switcher-head-ink-dim, var(--text-faint));
+}
+.home-switcher-state.is-live { color: #4c9bff; }
+/* 真窗口的落脚处：裁剪 + 定位。窗口本身由 homeThumb.ts 搬进来。 */
+.home-switcher-thumb {
+  position: absolute;
+  inset: 26px 0 0 0;
+  overflow: hidden;
+  background: var(--home-switcher-card-bg, var(--home-switcher-thumb-bg));
+}
+.home-switcher-thumb-hold {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+/*
+ * 被搬进缩略图的真窗口：取消视口定位（它已经不在视口里了，而是画框里的一个绝对定位盒子），
+ * 按 --thumb-scale 整体缩放。其余全部保持原样 —— 这就是「软链接」的全部魔法。
+ * pointer-events 关掉：缩略图只是画面，点击属于卡片本身（还原）/ 关闭按钮。
+ */
+/* 选择器刻意写到 (0,4,0)：`.quick-input.focus-mode.window-minimized` 是 (0,3,0) 且都带
+   !important，少一级就会被它按下去 —— 表现是卡片里一片空白（窗口还在，只是 opacity:0）。 */
+.home-switcher .home-switcher-thumb > .quick-input.window-thumbed {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  margin: 0 !important;
+  /* 先按 (--thumb-x, --thumb-y) 摆到卡片里的位置，再整体缩放（transform 从右往左生效，
+     所以这里的位移量就是最终像素，不用再乘 scale）。 */
+  transform: translate(var(--thumb-x, 0px), var(--thumb-y, 0px)) scale(var(--thumb-scale, .33)) !important;
+  transform-origin: 0 0 !important;
+  /* 窗口自己的圆角和描边在缩略图里不要：卡片圆角负责裁形。
+     留着会在卡片的四个角里露出一圈「窗中窗」的边，看起来就是倒角缺了一块。 */
+  border-radius: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  /* 窗口自己的 z-index（按层级 101+）会把卡片里的关闭按钮压下去，缩略图里统一压到最底。 */
+  z-index: 1 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+  user-select: none;
+  transition: none !important;
+  animation: none !important;
+}
+/* 缩略图里不要窗口自己的红绿灯（外面那颗 X 就长在它位置），也不要八向缩放手柄。 */
+.home-switcher .home-switcher-thumb > .quick-input.window-thumbed .focus-topbar-wrap,
+.home-switcher .home-switcher-thumb > .quick-input.window-thumbed .focus-resize-handle {
+  display: none !important;
+}
+/*
+ * 窗口真正的圆角不在 .quick-input 上，而在内容层 `.focus-window-clip` 的
+ * `clip-path: inset(0 … round 20px)`（还有 .quick-input::before 那圈 1px 描边）。
+ * 不清掉它，缩略图里就会出现「方卡片里套一个圆角窗口」—— 四角露出卡片底色，
+ * 看起来就是倒角缺了一块。这里统一交给卡片的 border-radius 裁。
+ */
+.home-switcher .home-switcher-thumb > .quick-input.window-thumbed > .focus-window-clip {
+  clip-path: none !important;
+  border-radius: 0 !important;
+}
+.home-switcher .home-switcher-thumb > .quick-input.window-thumbed::before,
+.home-switcher .home-switcher-thumb > .quick-input.window-thumbed::after {
+  display: none !important;
+}
+/* 小龙是窗口用 DOM 再造的装饰，可能被挂到 body 上，缩略图里的后代选择器管不住它。
+   浮层开着这整段时间统一收起来（结束后 root 上的类被摘掉，它们自己会回来）。 */
+.home-switcher-open .dragon-pet,
+.home-switcher-open .dragon-pet-breath {
+  display: none !important;
+}
+/* 缩略图左上角的关闭按钮：就是这扇「小窗口」唯一的红绿灯（没有最小化 / 全屏）。 */
+.home-switcher-close {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  z-index: 3;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(12, 12, 16, .55);
+  color: rgba(255, 255, 255, .82);
+  opacity: .5;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+.home-switcher-close svg {
+  width: 9px;
+  height: 9px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.home-switcher-card:hover .home-switcher-close,
+.home-switcher-close:focus-visible { opacity: 1; }
+.home-switcher-close:hover { background: #ff5f57; color: #fff; }
+.home-switcher-live {
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #4c9bff;
+  animation: home-switcher-pulse 1.2s ease-in-out infinite;
+}
+@keyframes home-switcher-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes home-switcher-in {
+  from { opacity: 0; transform: translateY(14px) scale(.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes home-switcher-pulse {
+  0%, 100% { opacity: .35; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-switcher-backdrop,
+  .home-switcher,
+  .home-switcher-card,
+  .home-switcher-live { animation: none; transition: none; }
+}
+
+/* 三套壁纸共用 agent-kit 输入组件，只切换 Launcher 容器的色彩变量。 */
+.quick-input {
+  --panel: rgba(34, 38, 47, .88);
+  --line: rgba(225, 230, 242, .19);
+  --ink: #f4f5f8;
+  --ink-soft: #b2bac7;
+  --hover: rgba(255, 255, 255, .09);
+  --send-bg: #d5d9e2;
+  --send-bg-hover: #e8ebf1;
+  --send-ink: #242833;
+  --surface-soft: rgba(255, 255, 255, .07);
+  --surface-strong: rgba(255, 255, 255, .13);
+  --shadow-color: rgba(8, 11, 21, .36);
+  --error-ink: #ffaba4;
+  --glow: rgba(207, 214, 234, .16);
+  --composer-bg: rgba(113, 124, 146, .24);
+  --composer-line: rgba(225, 230, 242, .27);
+  --focus-body-bg: #272b35;
+  --focus-bar-bg: #20242d;
+  /* --chat-content-width 不在这里声明：kit 的 .chat-main 自己会声明（百分比要相对中栏解析），
+     launcher 在 styles-launcher.css 里按「80% + 96px，上限 1200」覆盖。 */
+  --user-bubble-self: var(--surface-strong);
+  --user-bubble-soft: var(--surface-soft);
+  --field-bg: var(--panel);
+  --fade-stop: var(--focus-body-bg);
+  --home-composer-width: var(--home-frame-width);
+  /* dock 86 时：102 = 86 + 16 间距（随 --dock-reserved-height 同步 +14） */
+  --home-composer-bottom: 102px;
+  /* 输入框与聚焦窗口底边的间距；hover 条同步上移同样的量，保证 hover→聚焦位置不变 */
+  --home-composer-pad: 12px;
+  position: fixed;
+  bottom: calc(var(--home-composer-bottom) + var(--home-composer-pad));
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--home-composer-width);
+  box-sizing: border-box;
+  margin: 0;
+  background: var(--panel);
+  border: var(--domain-border, 1px solid var(--line));
+  border-radius: 20px;
+  box-shadow: 0 24px 65px var(--shadow-color), inset 0 1px 0 var(--glow);
+  backdrop-filter: blur(32px) saturate(135%);
+  -webkit-backdrop-filter: blur(32px) saturate(135%);
+  color: var(--ink);
+  z-index: 90;
+  pointer-events: auto;
+  transform-origin: center bottom;
+  /* hover 出现动画：上浮 + 缩放弹入（prefers-reduced-motion 时由媒体查询禁用） */
+  animation: quick-in 320ms cubic-bezier(.2, .8, .2, 1) both;
+  transition: background-color 260ms ease, border-color 260ms ease, color 260ms ease, box-shadow 260ms ease;
+}
+
+@keyframes quick-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(34px) scale(.12, .35); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+.quick-input.skin-wp2 {
+  --panel: rgba(189, 216, 241, .96);
+  --line: rgba(50, 103, 158, .34);
+  --ink: #143a5e;
+  --ink-soft: #4f718f;
+  --hover: rgba(38, 99, 163, .12);
+  --send-bg: #2667a8;
+  --send-bg-hover: #2f79bd;
+  --send-ink: #fff;
+  --surface-soft: rgba(82, 139, 194, .11);
+  --surface-strong: rgba(61, 125, 189, .24);
+  --shadow-color: rgba(8, 49, 100, .29);
+  --error-ink: #b12d31;
+  --glow: rgba(255, 255, 255, .78);
+  --composer-bg: rgba(237, 247, 255, .96);
+  --composer-line: rgba(47, 107, 169, .34);
+  --focus-body-bg: #bfd8ef;
+  --focus-bar-bg: #aacce9;
+  --brand: #2667a8;
+  --brand-soft: rgba(38, 103, 168, .12);
+}
+
+.quick-input.skin-wp3 {
+  --panel: rgba(20, 47, 31, .86);
+  --line: rgba(190, 234, 180, .22);
+  --ink: #f1f8e9;
+  --ink-soft: #bed4bb;
+  --hover: rgba(215, 245, 202, .1);
+  --send-bg: #c4e2ac;
+  --send-bg-hover: #d4ebc3;
+  --send-ink: #183923;
+  --surface-soft: rgba(224, 245, 208, .08);
+  --surface-strong: rgba(224, 245, 208, .14);
+  --shadow-color: rgba(8, 34, 13, .4);
+  --error-ink: #ffc2b5;
+  --glow: rgba(218, 251, 194, .14);
+  --composer-bg: rgba(119, 161, 105, .29);
+  --composer-line: rgba(202, 240, 178, .35);
+  --focus-body-bg: #1d3b27;
+  --focus-bar-bg: #142f1f;
+  --brand: #c4e2ac;
+  --brand-soft: rgba(196, 226, 172, .15);
+}
+
+/* 熔火龙境：焦黑木炭作底，黄铜描边与熔岩橙作为操作强调色。 */
+.quick-input.skin-wp4 {
+  --panel: rgba(30, 24, 23, .94);
+  --line: rgba(236, 174, 104, .28);
+  --ink: #f8ecdb;
+  --ink-soft: #c7ad98;
+  --hover: rgba(255, 170, 84, .11);
+  --send-bg: #e98532;
+  --send-bg-hover: #ff9e47;
+  --send-ink: #23140f;
+  --surface-soft: rgba(255, 175, 102, .07);
+  --surface-strong: rgba(255, 175, 102, .15);
+  --shadow-color: rgba(20, 8, 4, .56);
+  --error-ink: #ffb0a0;
+  --glow: rgba(255, 188, 103, .18);
+  --composer-bg: rgba(52, 37, 32, .8);
+  --composer-line: rgba(244, 160, 79, .38);
+  --focus-body-bg: #211b1b;
+  --focus-bar-bg: #2c211e;
+  --brand: #e98532;
+  --brand-soft: rgba(233, 133, 50, .15);
+}
+.dynamic-composer-canvas {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  overflow: visible;
+}
+.quick-input.focus-mode.skin-wp4 .chat-composer-stack {
+  /* Keep the same card box in preview and focus. Fire is only an overlay. */
+  background: var(--panel);
+  border-color: transparent;
+  box-shadow: 0 2px 12px rgba(31, 14, 7, .2);
+}
+.quick-input.skin-wp5 {
+  --panel: rgba(12, 31, 45, .95); --line: rgba(151, 207, 226, .3);
+  --ink: #e3f6ff; --ink-soft: #9bbcc9; --hover: rgba(130, 203, 226, .12);
+  --send-bg: #83bbd8; --send-bg-hover: #a9d7ec; --send-ink: #102633;
+  --surface-soft: rgba(145, 206, 227, .08); --surface-strong: rgba(145, 206, 227, .16);
+  --shadow-color: rgba(3, 15, 25, .55); --error-ink: #ffc1b7; --glow: rgba(126, 208, 236, .18);
+  --composer-bg: rgba(12, 32, 47, .95); --composer-line: rgba(151, 207, 226, .35);
+  --focus-body-bg: #102838; --focus-bar-bg: #102431; --brand: #9bd0e5; --brand-soft: rgba(155, 208, 229, .15);
+}
+.quick-input.skin-wp6 {
+  --panel: rgba(23, 23, 26, .95); --line: rgba(211, 166, 83, .42);
+  --ink: #f7e6bb; --ink-soft: #bba479; --hover: rgba(239, 192, 100, .12);
+  --send-bg: #d3a451; --send-bg-hover: #f4d480; --send-ink: #33200e;
+  --surface-soft: rgba(239, 192, 100, .08); --surface-strong: rgba(239, 192, 100, .16);
+  --shadow-color: rgba(8, 5, 3, .6); --error-ink: #ffb0a0;
+  --glow: rgba(241, 184, 73, .18); --composer-bg: rgba(32, 31, 32, .94);
+  --composer-line: rgba(219, 178, 94, .55); --focus-body-bg: #1b1918;
+  --focus-bar-bg: #221d19; --brand: #e7c57a; --brand-soft: rgba(231, 197, 122, .15);
+}
+.quick-input.skin-wp5 .chat-composer-stack { background: linear-gradient(160deg, #102a3eec, #0b1a2df0 68%, #0c2434f2); border-color: rgba(151, 207, 226, .25); overflow: visible; }
+.quick-input.skin-wp6 .chat-composer-stack {
+  background: linear-gradient(135deg, #191a1dee, #252526f3 62%, #18191bef);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 2px #5d4621, inset 0 0 0 5px #d0a85a,
+    inset 0 0 0 7px #382916, 0 30px 70px #000b;
+  overflow: visible;
+}
+.gold-composer-dragon {
+  position: absolute; z-index: 6; width: 170px; height: auto;
+  right: 0; bottom: calc(100% - 16px); pointer-events: none;
+  filter: drop-shadow(0 8px 9px #080503b3);
+}
+.dragon-pet {
+  position: absolute;
+  width: 155px;
+  height: 97px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  pointer-events: auto;
+  visibility: hidden;
+  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, .78));
+  transform-origin: 50% 100%;
+}
+.dragon-pet-back { z-index: 1; pointer-events: none; }
+.dragon-pet-front {
+  z-index: 6;
+  filter: drop-shadow(0 -2px 5px rgba(255, 111, 21, .48));
+}
+.dragon-pet-sprite {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+.dragon-pet-gaze {
+  position: absolute;
+  left: 59px;
+  top: 34px;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #ffe8a0;
+  box-shadow: 0 0 4px 1px #ff8c18;
+  pointer-events: none;
+}
+.dragon-pet:focus-visible {
+  outline: 2px solid #ffb756;
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+/* 空闲呼吸摆动：JS 渲染循环静止时完全停摆（不排 rAF），这点微动交给合成器。
+   起止角用 --dragon-lean（最近一次 JS 算出的身体倾斜）做基准，所以从"逐帧写 transform"
+   切到"CSS 动画"时姿态是连续的，不会跳一下。 */
+@keyframes dragon-idle-sway {
+  from { transform: rotate(calc(var(--dragon-lean, 0deg) - .5deg)); }
+  to { transform: rotate(calc(var(--dragon-lean, 0deg) + .5deg)); }
+}
+.dragon-pet.is-idle {
+  animation: dragon-idle-sway 1.65s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dragon-pet.is-idle {
+    animation: none;
+    transform: rotate(var(--dragon-lean, 0deg));
+  }
+}
+.dragon-pet-breath {
+  position: absolute;
+  inset: 0;
+  /* 喷火必须画在所有面板之上（左栏悬浮态 z300、侧栏开关 z301 等），
+     否则火焰喷到面板边缘会被硬生生截断成"被组件挡住"的效果；末端由 shader 沿路径自然渐隐。 */
+  z-index: 500;
+  pointer-events: none;
+}
+
+/* 从 Home 按钮到输入卡的透明悬停通道。下缘与 Dock 重叠，上缘伸到输入卡底边之上；
+   通道在输入卡和 Dock 下层，避免挡住输入控件或 Home 按钮。 */
+.quick-input-bridge {
+  pointer-events: auto;
+  position: fixed;
+  left: 50%;
+  bottom: 82px;
+  width: var(--home-frame-width);
+  max-width: calc(100vw - 48px);
+  height: 48px;
+  transform: translateX(-50%);
+  background: transparent;
+  z-index: 89;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-input { animation: none; }
+}
+
+.quick-input .chat-composer {
+  padding: 14px 16px 10px;
+}
+
+/* 点击主入口后的聚焦模式，保留 Dock，聊天区域占满其上方工作区。 */
+.quick-input.focus-mode {
+  --focus-left-extension: 0px;
+  --focus-right-extension: 0px;
+  top: calc(12px + var(--window-offset-y, 0px));
+  bottom: auto;
+  height: var(--window-height, calc(100vh - 100px));
+  left: calc(50% + var(--window-offset-x, 0px));
+  width: var(--window-width, var(--home-frame-width));
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  isolation: isolate;
+  transform: translateX(-50%);
+  animation: none;
+  transition: top 200ms cubic-bezier(.2,.8,.2,1), left 200ms cubic-bezier(.2,.8,.2,1), width 200ms cubic-bezier(.2,.8,.2,1), height 200ms cubic-bezier(.2,.8,.2,1), transform 200ms cubic-bezier(.2,.8,.2,1), opacity 180ms ease;
+}
+.quick-input.focus-mode.focus-primary,
+.quick-input.focus-mode.focus-knowledge {
+  /* 宽度与数域窗口统一走基础规则（600px / 窄屏 100vw-48px），这里只调主窗口高度。 */
+  /* 高度**不再**随 --window-offset-y 缩小：向下拖窗口时整窗下移、底边一起沉，
+     允许像 macOS 那样把窗口拖过 Dock 区域（与其它窗口行为一致）。
+     静止时仍是 100vh − 12px − 102px，输入卡停在 Dock 上方；只有主动往下拖才会越过 Dock，
+     那时输入卡是否被 Dock 遮住是用户自己的选择（和其它窗口一样）。 */
+  height: var(--window-height, calc(100vh - 12px - var(--home-composer-bottom)));
+}
+/* 最大化窗口占满 Dock 以上的空间，底边与 Dock 顶部相接。
+   高度优先用 FocusWindowFrame 实测的 Dock 顶边（--dock-top-inset）：Dock 的实际高度由
+   图标 60 + 上下各 8 padding + 1px 边框决定，写死的 --dock-reserved-height 一旦和它对不上，
+   底部就会留一条几像素的缝；实测值缺失（首帧 / Dock 尚未布局 / 非最大化）时回退到同一个公式。 */
+.quick-input.focus-mode.window-maximized {
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: var(--dock-top-inset, calc(100vh - var(--dock-reserved-height)));
+  transform: none;
+  border-radius: 20px;
+}
+/* 最大化后窗口底边已经压在 Dock 顶边（上一段），输入卡不能再贴到窗口底边：
+   卡片的圆角下缘、外圈金线会被窗口边缘压掉，火焰主题还要往卡片下方画一圈火，那圈火
+   直接整块被剪断 —— 看起来就是"输入框掉到窗口外面、底部没了"。
+   距离只有一处来源：`.chat-main-inner` 的 16px（非空态 margin-bottom / 空态 bottom，
+   见 styles-launcher.css）。这里只放大最大化态的这个值。
+   公式：非最大化时窗口 bottom = 100vh − 102（top 12 + 高 100vh − 114），卡片再抬 16
+   → 卡片底边在 100vh − 118；最大化时窗口底边 = 100vh − dock（86），要落在同一位置
+   就需要 118 − 86 = 32。于是最大化前后输入卡**一点儿不动**，同时底部留出金线和火焰的空间。
+   想更靠下就调小 --maximized-composer-inset（0 = 完全贴底）。 */
+.quick-input.focus-mode.window-maximized .chat-shell.is-launcher .chat-main:not(.is-empty) .chat-main-inner {
+  margin-bottom: var(--maximized-composer-inset, calc(118px - var(--dock-reserved-height)));
+}
+.quick-input.focus-mode.window-maximized .chat-shell.is-launcher .chat-main.is-empty .chat-main-inner {
+  bottom: var(--maximized-composer-inset, calc(118px - var(--dock-reserved-height)));
+}
+.quick-input.focus-mode.window-maximized > .focus-window-clip {
+  clip-path: inset(0 round 20px);
+  border-radius: 20px;
+}
+/* 最大化时不用向外扩 1px 的描边层，以免在屏幕边缘漏线。 */
+.quick-input.focus-mode.window-maximized::before { display: none; }
+.quick-input.focus-mode.window-interacting { transition: none; }
+/* 拖拽窗口边框（resize）期间，**内容层**的过渡也必须一起停掉。
+   窗口的 width/left 在 .window-interacting 下已经是瞬时直出，但 kit 的 --grow-right
+   自己带 180ms ease 过渡（styles-layout.css 的 .chat-shell.layout-grow），于是每帧都是
+   "窗口先跳到新宽度（chat 看起来变宽了）→ 右栏再慢慢追上把 chat 压回去"，
+   表现为 resize 有明显延迟、右栏不跟手。
+   两边同帧直出后，窗口增量与右栏宽度逐帧等量相抵，chat 是被实时挤压的。 */
+.quick-input.focus-mode.window-interacting .chat-shell,
+.quick-input.focus-mode.window-interacting .chat-shell .agent-content-frame,
+.quick-input.focus-mode.window-interacting .chat-shell .chat-main,
+.quick-input.focus-mode.window-interacting .chat-shell .chat-pane-left,
+.quick-input.focus-mode.window-interacting .chat-shell .chat-pane-right {
+  transition: none !important;
+}
+.quick-input.focus-mode.window-minimizing { opacity: 0; transform: translateX(-50%) translateY(16px) scale(.96); pointer-events: none; }
+.quick-input.focus-mode.window-maximized.window-minimizing { transform: translateY(16px) scale(.96); }
+
+/* 直接点击 Home：整个 frame（包括输入框及按钮）从 Dock 上方向上出现，宽度全程不变。 */
+.quick-input.focus-mode.window-direct-enter {
+  transition: none;
+  animation: focus-window-in 320ms cubic-bezier(.2, .8, .2, 1) both;
+}
+.quick-input.focus-mode.window-direct-enter.window-maximized {
+  animation-name: focus-maximized-in;
+}
+@keyframes focus-window-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(var(--appear-offset-y, 64px)); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+@keyframes focus-maximized-in {
+  from { opacity: 0; transform: translateY(var(--appear-offset-y, 64px)); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quick-input.focus-mode.window-direct-enter { animation: none; }
+}
+
+/* hover 预览态：整窗已挂载但只显示输入框（输入框为同一 DOM 节点，点击展开时位置/大小不变）。
+   入场动画留在输入框上，点击展开时不重启动画。 */
+.quick-input.focus-mode.window-preview {
+  pointer-events: none;
+}
+/* 最小化时保留布局尺寸和组件实例。opacity 作用于整棵渲染树，
+   左右面板内部即使单独设置了 visibility:visible，也不能漏到桌面上。 */
+.quick-input.focus-mode.window-minimized {
+  opacity: 0 !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+.quick-input.focus-mode.window-minimized .dragon-pet,
+.quick-input.focus-mode.window-minimized .dragon-pet-breath {
+  visibility: hidden !important;
+}
+.quick-input.focus-mode.window-preview::before { display: none; }
+/* 文件拖到聊天窗上：整窗描一圈高亮，告诉用户「松手就把文件放进这个输入框」。
+   预览态（home 悬浮输入框）同样适用 —— 那正是 home 按钮拖放时的落点。 */
+.quick-input.focus-mode.window-file-drop {
+  outline: 2px solid var(--desk-drop-line, #4c8dff);
+  outline-offset: -2px;
+}
+/* 文件拖到 Home 按钮上：图标描一圈高亮（同上语义，落点是 home 的悬浮输入框）。 */
+.dock-home-item.is-file-drop .icon-wrap {
+  box-shadow: 0 0 0 2px var(--desk-drop-line, #4c8dff);
+}
+/* 「在会话卡片上停留够久」的提示：挂在刚打开的聊天窗上（卡片这会儿往往已经从桌面消失）。 */
+.window-file-drop-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 172px;
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #fff;
+  background: var(--desk-drop-line, #4c8dff);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .28);
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* 预览态只保留输入区（composer + 加号/项目/语音等工具栏按钮）：消息列表、左右栏、顶部栏一律隐藏。
+   展开完整聊天界面（发送消息或点击 Home）时恢复。 */
+.quick-input.focus-mode.window-preview :is(.chat-pane-left, .chat-pane-right, .chat-main > :not(.chat-main-inner), .chat-main-inner > :not(.chat-input-zone):not(.cowork-mentions)) { display: none; }
+/* 预览态放开整个输入区（含加号/项目/语音等工具栏按钮）：
+   可在预览输入框内直接完成一次对话；消息列表/顶部栏等其余 UI 仍保持隐藏与不可交互。
+   发送消息或点击 Home 后才展开完整聊天界面。 */
+.quick-input.focus-mode.window-preview .chat-input-zone { pointer-events: auto; }
+.quick-input.focus-mode.window-preview .cowork-mentions { pointer-events: auto; }
+/* 预览态输入卡永远贴在窗口底部（= 展开后的位置），**且不依赖 .is-empty**。
+   这里踩过一个很隐蔽的坑：会话还在加载时（kit 的 contentLoading=true）`.chat-main` 上根本
+   没有 is-empty 类，而预览态又把消息区 display:none 掉了 —— 于是 .chat-main-inner 退化成
+   普通流里的唯一子元素，被顶在**窗口顶部**。入场动画前半程就在窗口顶部播（那会儿卡片
+   已经被放大到 30%~50%，是一个能看见的小输入框），等加载完 is-empty 落到 DOM 上，它才被
+   钉到底部 —— 视觉上就是"输入框从下方上浮的同时，屏幕上方又闪了一个小输入框"。
+   kit 的居中规则（top:50%）和容器查询（position:relative; flex:1）都由 .is-empty 触发，
+   所以这里不看 is-empty、也不给它走流式布局的机会：预览态直接按"展开后的贴底几何"钉死。 */
+.quick-input.focus-mode:is(.window-preview, .window-direct-enter) .chat-shell.is-launcher .chat-main .chat-main-inner {
+  position: absolute;
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 16px;
+  margin: 0;
+  transform: translateX(-50%);
+  width: var(--chat-content-width);
+  max-width: none;
+  justify-content: flex-end;
+}
+/* 输入卡自己做 transform 动画，提前把它提升成独立合成层。
+   否则 Chromium 会按动画进程里的尺寸重建 raster，某一帧可能把"缩小后的卡片"
+   直接画在最终位置上 —— 视觉上同样是"闪一下很小的输入框"。
+   will-change 挂在 .window-previewed 上（而不是 .window-preview）：这个类在展开成全窗后
+   仍然保留，动画中途被点击时合成层不会先被撤掉再重栅格化。 */
+.quick-input.focus-mode.window-composer-entering .chat-input-zone .chat-composer-stack {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform-origin: center bottom;
+  /* 30ms 延迟 + backwards：先把卡片停在动画的"起点帧"（opacity: 0）上，
+     等合成层站稳再开始播放；播完则**不再占用 transform**（不留常驻平移层）。 */
+  animation: home-composer-in 320ms cubic-bezier(.2, .8, .2, 1) 30ms backwards;
+}
+/* 注意选择器**不含** .window-preview：卡片入场动画必须能跨越"预览 → 展开成全窗"这一步。
+   踩过的坑：以前写成 .window-preview.window-previewed，用户看到卡片从图标冒出来就点 Home，
+   .window-preview 一掉，动画被取消 → 卡片从半大直接跳到最终尺寸，
+   视觉上就是"左边还在，右边还没长出来就被挤开了"。 */
+@keyframes home-composer-in {
+  /* 从 Home 圆钮的位置**等比**长到最终位置。
+     以前是 scale(.095, .45)：横向只剩 9.5%，右侧工具栏（模型 / 麦克风 / 发送）被压进
+     几个像素里，整段动画只看得见左边那行文字在横向拉伸 —— 正是"右边出不来、被挤出来"的来源。
+     等比缩放时卡片从第一帧就是一张完整的小卡片，内容不变形。
+     .38 ≈ 图标 50px / 空态卡片 130px，即起始高度与图标相当，看起来就是"从图标里长出来"。 */
+  from { opacity: 0; transform: translate(var(--composer-appear-offset-x, 0px), var(--composer-appear-offset-y, var(--home-composer-bottom, 102px))) scale(var(--composer-appear-scale, .38)); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quick-input.focus-mode.window-composer-entering .chat-input-zone .chat-composer-stack { animation: none; }
+}
+.quick-input.focus-mode.window-preview .focus-topbar-wrap,
+.quick-input.focus-mode.window-preview .focus-resize-handle {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .quick-input.focus-mode { transition: none; }
+}
+.focus-resize-handle { position: absolute; z-index: 5; }
+.focus-resize-n, .focus-resize-s { left: 10px; right: 10px; height: 7px; cursor: ns-resize; }
+.focus-resize-n { top: -4px; }
+.focus-resize-s { bottom: -4px; }
+.focus-resize-e, .focus-resize-w { top: 10px; bottom: 10px; width: 7px; cursor: ew-resize; }
+.focus-resize-e { right: -4px; }
+.focus-resize-w { left: -4px; }
+.focus-resize-ne, .focus-resize-se, .focus-resize-sw, .focus-resize-nw { width: 12px; height: 12px; }
+.focus-resize-ne { top: -4px; right: -4px; cursor: nesw-resize; }
+.focus-resize-se { bottom: -4px; right: -4px; cursor: nwse-resize; }
+.focus-resize-sw { bottom: -4px; left: -4px; cursor: nesw-resize; }
+.focus-resize-nw { top: -4px; left: -4px; cursor: nwse-resize; }
+
+.quick-input.focus-mode::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: calc(-1px - var(--focus-left-extension));
+  right: calc(-1px - var(--focus-right-extension));
+  z-index: -1;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--focus-body-bg);
+  box-shadow: 0 24px 65px var(--shadow-color);
+  pointer-events: none;
+}
+
+/* 多窗口时，当前聚焦（最上层）窗口的边框稍亮一点，方便一眼区分激活窗。
+   用 line 与 ink 各半混色：暗色皮肤里偏向更亮的浅线、亮色皮肤里偏向更深更实的描边，
+   跨皮肤都读成"更显眼"，但只是轻微提亮（不至于刺眼）。 */
+.quick-input.focus-mode.window-focused::before {
+  border-color: color-mix(in srgb, var(--line) 55%, var(--ink) 45%);
+}
+
+/* hover 已挂载完整内容；展开时只显现周围内容，输入框和各面板几何位置不动。 */
+.quick-input.focus-mode.window-previewed:not(.window-preview)::before {
+  animation: focus-fade-in 240ms ease both;
+}
+.quick-input.focus-mode.window-previewed:not(.window-preview) :is(.focus-topbar-wrap, .chat-pane-left, .chat-pane-right, .chat-main > :not(.chat-main-inner), .chat-main-inner > :not(.chat-input-zone)) {
+  animation: focus-appear 320ms cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes focus-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes focus-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quick-input.focus-mode.window-previewed:not(.window-preview)::before,
+  .quick-input.focus-mode.window-previewed:not(.window-preview) :is(.focus-topbar-wrap, .chat-pane-left, .chat-pane-right, .chat-main > :not(.chat-main-inner), .chat-main-inner > :not(.chat-input-zone)) { animation: none; }
+}
+
+.quick-input.focus-mode.with-left {
+  /* 必须与 kit 的左栏宽度严格相等（packages/agent-kit/src/ui/AgentWindow.tsx: LEFT_PANE_W = 280）：
+     这个值同时驱动窗口 clip 的左扩量、工具栏/红绿灯的左移量。写小了面板左侧会被裁掉一截，
+     工具栏也会少走同样的距离 —— 表现就是「按钮和标题没跟上侧栏」。 */
+  --focus-left-extension: 280px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.quick-input.focus-mode.with-right {
+  /* 同上：kit 在 layoutMode="grow" 时会用 inline style 覆写成实际右栏宽度（rightW ?? 340），
+     这里只是兜底值，保持一致即可。 */
+  --focus-right-extension: 340px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+@keyframes focus-chat-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.focus-mode .chat-topbar {
+  flex: 0 0 38px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  user-select: none;
+  border-bottom: 1px solid var(--line);
+  background: var(--focus-bar-bg);
+  border-radius: 20px 20px 0 0;
+}
+.focus-topbar-wrap { position: relative; flex: 0 0 38px; touch-action: none; }
+/* 顶部可拖动，但刻意不换成 grab 手型：现代操作系统（Windows / macOS）拖标题栏都是默认箭头，
+   改光标反而显得不原生。 */
+.focus-topbar-wrap .chat-topbar { height: 38px; z-index: 0; }
+.focus-topbar-wrap .chat-topbar-left { padding-left: 68px; }
+.chat-shell.is-launcher .cowork-settings-backdrop { inset: 0; }
+.focus-mode.with-left .focus-topbar-wrap .chat-topbar-left { padding-left: 12px; }
+.focus-mode.with-left .chat-topbar { border-top-left-radius: 0; }
+.focus-mode.with-right .chat-topbar { border-top-right-radius: 0; }
+
+.focus-mode .chat-topbar-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.focus-mode .chat-topbar button { cursor: pointer; }
+.focus-window-controls { position: absolute; z-index: 1; left: 12px; top: 0; height: 38px; display: flex; align-items: center; gap: 8px; }
+.focus-mode.with-left .focus-window-controls { left: calc(12px - var(--focus-left-extension)); }
+.focus-window-control { width: 12px; height: 12px; padding: 0; border-radius: 50%; border: 1px solid rgba(255,255,255,.22); cursor: pointer; display: grid; place-items: center; }
+.focus-window-control.close { --close-fill: #ededed; --close-ink: #222; background: var(--close-fill); }
+.focus-window-control.minimize { background: #a9a9a9; }
+.focus-window-control.maximize { background: #5b5b5b; }
+.focus-window-control svg { display: block; width: 9px; height: 9px; fill: none; stroke: #222; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: 0; pointer-events: none; }
+.focus-window-control.close svg { width: 12px; height: 12px; opacity: 1; margin: -1px; }
+.focus-window-control.close svg path { fill: none; stroke: var(--close-ink); stroke-width: 1.5; opacity: 0; }
+.focus-window-controls:hover .focus-window-control.close svg path,
+.focus-window-control.close:focus-visible svg path { opacity: 1; }
+.focus-window-control.maximize svg { stroke: #fff; }
+.focus-window-controls:hover .focus-window-control svg, .focus-window-control:focus-visible svg { opacity: 1; }
+
+.focus-mode .chat-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.focus-mode .chat-sidebar-toggle {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--ink-soft);
+}
+
+.focus-mode .chat-sidebar-toggle:hover { background: var(--hover); color: var(--ink); }
+.focus-mode .chat-workbench-button {
+  flex: 0 0 30px;
+}
+.focus-mode .chat-workbench-button:hover { background: var(--hover); color: var(--ink); }
+.focus-mode .chat-sidebar-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+
+.quick-input .chat-composer textarea {
+  width: 100%;
+  display: block;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 6px 2px;
+  color: var(--ink);
+  font-size: 15px;
+  font-family: inherit;
+  line-height: 1.55;
+  min-height: 60px;
+  max-height: 180px;
+  overflow-y: hidden;
+}
+
+.quick-input .chat-composer textarea::placeholder {
+  color: var(--ink-soft);
+  opacity: .75;
+}
+
+.quick-input .chat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  margin-top: 4px;
+}
+
+.quick-input .chat-toolbar-left,
+.quick-input .chat-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.quick-input .chat-toolbar-center { justify-content: flex-end; }
+.quick-input .chat-model-picker { max-width: min(190px, 38vw); }
+.quick-input .chat-model-picker-btn { max-width: 100%; color: var(--ink); }
+.quick-input .chat-model-picker-popup { z-index: 30; }
+
+/* 输入框底部工具按钮统一形态：加号（.chat-tool）、麦克风（.chat-voice）、
+   选择工作空间/文件夹（.chat-ws-btn）三者必须完全一致 —— 36×36 圆形、无边框、透明底。
+   文件夹按钮的描边来自 kit 的旧 .chat-ws-btn 规则（曾经的"图标+文字"胶囊），
+   这里用 0,2,0 特异性覆盖掉，避免它比旁边的加号多出一圈边框。 */
+.quick-input .chat-tool,
+.quick-input .chat-voice,
+.quick-input .chat-ws-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-soft);
+  box-shadow: none;
+}
+/* 锚点原本给「图标+文字」胶囊留的 35px 最小宽度，图标态下要和按钮同宽，否则会差 1px。 */
+.quick-input .chat-ws-anchor { min-width: 36px; }
+.quick-input .chat-ws-btn.has-workspace {
+  width: auto;
+  max-width: min(180px, 32vw);
+  justify-content: flex-start;
+  padding: 0 8px 0 7px;
+  gap: 5px;
+  border-radius: 18px;
+}
+
+.quick-input .chat-tool:disabled,
+.quick-input .chat-voice:disabled,
+.quick-input .chat-ws-btn:disabled { cursor: default; }
+
+/* hover 反馈必须在这里补回来：kit 的 `.chat-tool:hover { background: var(--hover) }` 与
+   上面 `.quick-input .chat-tool` 同为 0,2,0 特异性，而本文件在 kit 样式之后加载，
+   于是上面那句 `background: transparent` 会把 hover 态一起压掉（+ 号点了没反应、
+   看上去"缺 hover 效果"的根因）。加号本身仍是 kit 的 .chat-tool / ChatPanelGlyph24，
+   launcher 没有自造按钮。 */
+@media (hover: hover) and (pointer: fine) {
+  .quick-input .chat-tool:hover:not(:disabled),
+  .quick-input .chat-voice:hover:not(:disabled),
+  .quick-input .chat-ws-btn:hover:not(:disabled),
+  .quick-input .chat-ws-btn.is-open {
+    background: var(--hover);
+    color: var(--ink);
+  }
+}
+
+.quick-input .chat-tool svg,
+.quick-input .chat-voice svg,
+.quick-input .chat-ws-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.quick-input .chat-send {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--send-bg);
+  color: var(--send-ink);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .15);
+  cursor: pointer;
+}
+
+.quick-input .chat-send:disabled { opacity: .45; cursor: not-allowed; }
+/* 同上：`.quick-input .chat-send` 的 background 会压掉 kit 的 `.chat-send:hover`，补回按皮肤的 hover 色。 */
+@media (hover: hover) and (pointer: fine) {
+  .quick-input .chat-send:hover:not(:disabled) { background: var(--send-bg-hover); }
+}
+.quick-input .chat-send svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+
+/* ---------- 工作台 ---------- */
+
+.workspace {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 12, 16, 0.9);
+  backdrop-filter: blur(34px);
+  -webkit-backdrop-filter: blur(34px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  animation: ws-in 0.18s ease-out;
+}
+
+@keyframes ws-in {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+:root[data-theme="light"] {
+  --bg: #f0f0ef;
+  --text: #242426;
+  --text-dim: rgba(36, 36, 38, .62);
+  --text-faint: rgba(36, 36, 38, .42);
+  --accent: #454548;
+  --dock-bg: var(--desk-card-bg, rgba(255, 255, 255, .68));
+  --dock-bg-light: rgba(255, 255, 255, .75);
+  --card-bg: rgba(255, 255, 255, .74);
+  --card-border: rgba(28, 28, 30, .14);
+  --panel-bg: rgba(250, 250, 249, .92);
+  /* 上面 :root 把 agent-kit 的变量按「深色语境」写了（--ink 近白、--line 白边），
+     那是给桌面/Dock 用的。浅色模式下必须把这些换回浅色主题的值，否则：
+     ① Ctrl+Tab 切换浮层、会话搜索等 portal 到 body 的弹层拿不到 .quick-input 里的
+        data-appearance 覆盖，只能用白底(--overlay-bg) + 白字(--ink) → 完全看不清；
+     ② 输入卡片内不受影响（那里由 [data-appearance="light"] .quick-input 单独覆盖）。 */
+  --ink: #242426;
+  --ink-soft: #66676a;
+  --ink-faint: #8a8f98;
+  --line: rgba(35, 35, 38, .13);
+  --panel: #ffffff;
+  --field-bg: #ffffff;
+  --overlay-bg: #ffffff;
+  --hover: rgba(30, 30, 32, .07);
+  --hover-strong: rgba(30, 30, 32, .09);
+  --active: rgba(30, 30, 32, .08);
+}
+:root[data-theme="light"] .dock {
+  border-color: rgba(25, 25, 27, .14);
+  box-shadow: 0 14px 38px rgba(25, 25, 27, .15), inset 0 1px 0 rgba(255, 255, 255, .85);
+}
+:root[data-theme="light"] .dock-separator { background: rgba(25, 25, 27, .18); }
+:root[data-appearance="light"] .quick-input {
+  --panel: rgba(250, 250, 249, .93);
+  --line: rgba(35, 35, 38, .13);
+  --ink: #242426;
+  --ink-soft: #66676a;
+  --hover: rgba(30, 30, 32, .07);
+  --send-bg: #343538;
+  --send-ink: #fff;
+  --surface-soft: rgba(35, 35, 38, .04);
+  --surface-strong: rgba(35, 35, 38, .08);
+  --shadow-color: rgba(25, 25, 27, .17);
+  --error-ink: #a83232;
+  --glow: rgba(255, 255, 255, .9);
+  --composer-bg: rgba(255, 255, 255, .82);
+  --composer-line: rgba(35, 35, 38, .17);
+  --focus-body-bg: #f6f6f5;
+  --focus-bar-bg: #eaeae9;
+}
+:root[data-appearance="light"] .focus-window-control { border-color: rgba(25, 25, 27, .2); }
+:root[data-appearance="light"] .focus-window-control.close { --close-fill: #626366; --close-ink: #fff; }
+:root[data-appearance="light"] .focus-window-control.minimize { background: #a5a5a5; }
+:root[data-appearance="light"] .focus-window-control.maximize { background: #d3d3d2; }
+:root[data-appearance="light"] .focus-window-control.maximize svg { stroke: #222; }
+:root[data-appearance="custom"] .focus-window-control.close { --close-fill: #5b5b5b; --close-ink: #fff; }
+:root[data-appearance="custom"] .focus-window-control.minimize { background: #a9a9a9; }
+:root[data-appearance="custom"] .focus-window-control.maximize { background: #ededed; }
+:root[data-appearance="custom"] .focus-window-control.maximize svg { stroke: #222; }
+:root[data-appearance="dark"] .quick-input {
+  --panel: rgba(34, 35, 38, .94);
+  --line: rgba(240, 240, 242, .16);
+  --ink: #f4f4f5;
+  --ink-soft: #b6b6ba;
+  --hover: rgba(255, 255, 255, .08);
+  --send-bg: #e0e0e1;
+  --send-ink: #222326;
+  --surface-soft: rgba(255, 255, 255, .06);
+  --surface-strong: rgba(255, 255, 255, .12);
+  --shadow-color: rgba(0, 0, 0, .42);
+  --error-ink: #ffaba4;
+  --glow: rgba(255, 255, 255, .14);
+  --composer-bg: rgba(75, 76, 82, .48);
+  --composer-line: rgba(235, 235, 238, .2);
+  --focus-body-bg: #1a1a1a;
+  --focus-bar-bg: #1f1f1f;
+}
+
+/* hover 名字气泡（macOS Dock 同款）：浮在图标正上方的一块圆角小牌子。
+   位置由 Dock.tsx 算好（fixed + 夹在视口内），这里只负责长相。
+   不做小三角：新版 macOS 的 Dock 气泡就是纯圆角矩形，而且三角画在深色 Dock 上根本看不见。 */
+.dock-tooltip {
+  position: fixed;
+  z-index: 1200;
+  /* 位置全部由 Dock.tsx 用 left/top + transform 算好；这里把 bottom/right 钉死，
+     避免将来任何规则把它做成「上下都定」而把气泡压扁。 */
+  bottom: auto;
+  right: auto;
+  transform: translate(-50%, -100%);
+  max-width: 260px;
+  padding: 5px 13px 6px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--panel-bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  white-space: nowrap;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .28);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  pointer-events: none;
+  animation: dock-tooltip-in 120ms cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes dock-tooltip-in {
+  from { opacity: 0; transform: translate(-50%, calc(-100% + 3px)); }
+  to { opacity: 1; transform: translate(-50%, -100%); }
+}
+
+/* 语音失败条（按住语音键 → 实时转写失败时浮在 Home 上方）。
+   和 .dock-tooltip 同一套定位口径（fixed + translate(-50%,-100%)，位置由组件量 Home 算好），
+   区别是：① 可点关闭（pointer-events 要开）；② 两行结构（标题 + 可操作说明）。 */
+.home-voice-error {
+  position: fixed;
+  z-index: 1250;
+  /* 强调色**自己定义**，不要复用 --error-ink：那个变量只声明在 .quick-input 里（输入框主题），
+     portal 到 body 的气泡继承不到，写成 var(--error-ink) 会静默失效（背景透明、字色回落）。 */
+  --voice-error-accent: #ff8a80;
+  --voice-error-mark-ink: #1c1c1e;
+  /* 与 dock-tooltip 同理：位置由行内 left/top 决定，这里把另一对内边距变量钉死，
+     否则任何继承来的 bottom/right 都会把气泡压扁。 */
+  bottom: auto;
+  right: auto;
+  transform: translate(-50%, -100%);
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: max-content;
+  max-width: 400px;
+  padding: 10px 13px 11px;
+  border: 1px solid color-mix(in srgb, var(--voice-error-accent) 42%, transparent);
+  border-radius: 13px;
+  background: var(--panel-bg);
+  color: var(--text);
+  text-align: left;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .34);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  animation: home-voice-error-in 150ms cubic-bezier(.2, .8, .2, 1) both;
+}
+/* 浅色主题：面板近白，强调色必须换成深红，白字压在上面才看得清。 */
+:root[data-theme="light"] .home-voice-error {
+  --voice-error-accent: #c0392b;
+  --voice-error-mark-ink: #fff;
+}
+.home-voice-error-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--voice-error-accent);
+  color: var(--voice-error-mark-ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.home-voice-error-text { min-width: 0; }
+.home-voice-error-message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+.home-voice-error-detail {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--voice-error-accent);
+  /* 环境变量名 / URL 可能很长，必须能断行，不能把气泡顶到屏幕外 */
+  overflow-wrap: anywhere;
+}
+.home-voice-error-action {
+  margin-top: 7px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 7px;
+  background: var(--voice-error-accent);
+  color: var(--voice-error-mark-ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+.home-voice-error-action:hover { opacity: .88; }
+.home-voice-error-close {
+  flex: none;
+  margin: -3px -5px 0 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary, var(--text));
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: .55;
+  transition: opacity 120ms ease;
+}
+.home-voice-error-close:hover { opacity: 1; }
+@keyframes home-voice-error-in {
+  from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)); }
+  to { opacity: 1; transform: translate(-50%, -100%); }
+}
+
+.dock-settings-popup {
+  position: fixed;
+  z-index: 1200;
+  color: var(--text);
+}
+.dock-domain-popup {
+  position: fixed;
+  z-index: 1200;
+  min-width: 136px;
+  padding: 5px;
+  border: 1px solid var(--card-border);
+  border-radius: 11px;
+  background: var(--panel-bg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .2);
+}
+.dock-domain-popup button {
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.dock-domain-popup button:hover { background: rgba(128, 128, 128, 0.15); color: var(--text-strong); }
+/* 小龙右键菜单（「隐藏火龙」）：与 dock-domain-popup 同一套弹层语言，挂 body 上避免被输入卡裁切。 */
+.dragon-context-menu {
+  position: fixed;
+  z-index: 1300;
+  min-width: 128px;
+  padding: 5px;
+  border: 1px solid var(--card-border);
+  border-radius: 11px;
+  background: var(--panel-bg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .2);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+}
+.dragon-context-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.dragon-context-menu button:hover { background: var(--surface-strong); }
+.appearance-menu {
+  width: 344px;
+  max-height: min(88vh, 680px);
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  background: var(--panel-bg);
+  box-shadow: 0 20px 54px rgba(0, 0, 0, .24);
+  backdrop-filter: blur(30px) saturate(140%);
+  -webkit-backdrop-filter: blur(30px) saturate(140%);
+}
+/* 设置弹层顶部用户区：未登录时点击打开应用内 Web 登录窗口。 */
+.appearance-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.appearance-user-row { display: flex; align-items: center; gap: 10px; }
+.appearance-user-row .appearance-user { flex: 1; min-width: 0; }
+/* 登出改成 kit 的图标形态（LogoutIcon，与侧边栏用户区同一个几何），
+   尺寸/热区按图标按钮重写：32px 方形点击区 + 20px 图标，悬停靠底色 + 变亮，
+   不再有文字，所以去掉了原先的 text-decoration 下划线反馈。 */
+.appearance-logout { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text-dim); cursor: pointer; }
+.appearance-logout svg { width: 20px; height: 20px; display: block; }
+.appearance-logout:hover { color: var(--text); background: var(--card-border); }
+.appearance-logout:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+/* 登录窗已开、还没登进来时的状态行：面板不再自动收起，用这行告诉用户"等你登录"。 */
+.appearance-login-hint { margin-top: 10px; padding-left: 2px; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+/* 顶部有 `* { margin: 0; padding: 0 }` 全局重置，会把 dialog 的 UA `margin: auto` 一起吃掉；
+   而模态对话框正是靠 inset:0 + margin:auto 居中的，margin 归零后就贴在窗口左上角。
+   这里显式补回 fixed + inset:0 + margin:auto，不依赖 UA 默认值。 */
+.appearance-logout-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(360px, calc(100vw - 32px));
+  height: fit-content;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  /* --panel-bg 是给 Dock / 设置面板做毛玻璃用的半透明色（如 rgba(24,24,30,.78)），
+     模态框直接用它当底色会把下面的 Dock、壁纸透出来，形成"两层内容叠在一起"。
+     所以先用不透明的 --bg 打底，再把同一层 panel 色当渐变铺上去：
+     颜色观感与面板一致，但最终不透明。 */
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--panel-bg), var(--panel-bg));
+  color: var(--text);
+  box-shadow: 0 24px 70px rgba(0,0,0,.28);
+}
+.appearance-logout-dialog::backdrop { background: rgba(0,0,0,.4); }
+/* 焦点环也跟黑白灰走：Chrome 默认是蓝色，在灰阶弹窗里很跳 */
+.appearance-logout-dialog :focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.appearance-logout-dialog h2 { margin: 0 0 10px; font-size: 18px; }
+.appearance-logout-dialog p { margin: 0; color: var(--text-dim); font-size: 13px; line-height: 1.5; }
+.appearance-logout-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
+.appearance-logout-actions button { border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 14px; background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+.appearance-logout-actions button.primary { border-color: #d64545; background: #d64545; color: #fff; }
+.appearance-logout-actions button:disabled { opacity: .5; cursor: wait; }
+/* 删除账号：垃圾桶入口按钮（危险操作，hover 转红） */
+.appearance-delete { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text-dim); cursor: pointer; }
+.appearance-delete svg { width: 20px; height: 20px; display: block; }
+.appearance-delete:hover { color: #d64545; background: rgba(214,69,69,.12); }
+.appearance-delete:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+/* 删除账号确认弹窗：红色警示 + 必须输入确认词「删除账号」才放行 */
+.appearance-delete-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(400px, calc(100vw - 32px));
+  height: fit-content;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid rgba(214,69,69,.55);
+  border-radius: 16px;
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--panel-bg), var(--panel-bg));
+  color: var(--text);
+  box-shadow: 0 24px 70px rgba(0,0,0,.28);
+}
+.appearance-delete-dialog::backdrop { background: rgba(0,0,0,.4); }
+.appearance-delete-dialog :focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.appearance-delete-dialog h2 { margin: 0 0 10px; font-size: 18px; color: #d64545; }
+.appearance-delete-dialog .appearance-delete-warning { margin: 0; color: var(--text-dim); font-size: 13px; line-height: 1.6; }
+.appearance-delete-dialog .appearance-delete-warning strong { color: #d64545; }
+/* 危险确认按钮：与 primary 同构，但保持红色，disabled 时回到普通按钮观感 */
+.appearance-logout-actions button.danger { border-color: #d64545; background: #d64545; color: #fff; }
+.appearance-logout-actions button.danger:disabled { border-color: var(--card-border); background: transparent; color: var(--text); }
+/* 用户区与「外观」之间的水平分割线：与设置行分隔线同款（1px 边框色），上下各留呼吸间距。 */
+.appearance-user-sep {
+  height: 1px;
+  margin: 14px 0;
+  background: var(--card-border);
+}
+/* 无外框时把悬停反馈放在占位头像上：底色加深、图标反色，仍能看出可点击。 */
+.appearance-user:hover .appearance-user-avatar--placeholder {
+  background: var(--text-dim);
+  color: var(--panel-bg);
+}
+.appearance-user-avatar {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  transition: filter 140ms ease;
+}
+.appearance-user-avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-border);
+  color: var(--text-dim);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.appearance-user-avatar--placeholder svg { width: 22px; height: 22px; }
+/* 点头像换图：按钮就是头像本体，不额外占位。
+   悬停只轻微压暗作为可点反馈，不叠任何文字；遮罩仅在「上传中」时出现。 */
+.appearance-avatar-button { position: relative; flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.appearance-avatar-button:disabled { cursor: progress; }
+.appearance-avatar-button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.appearance-avatar-mask {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .62);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+.appearance-avatar-button:hover .appearance-user-avatar { filter: brightness(.86); }
+/* 真正的 <input type=file> 由头像按钮触发，本身不占布局。 */
+.appearance-avatar-input { display: none; }
+.appearance-user-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+/* 名字是可点的编辑入口：看起来仍是文字，靠光标形状提示可改，不加下划线。 */
+.appearance-user-name {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+.appearance-user-name:disabled { opacity: .6; cursor: progress; }
+.appearance-name-input {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--card-border);
+  border-radius: 7px;
+  background: var(--card-border);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+.appearance-name-input:focus { outline: 2px solid var(--text); outline-offset: 1px; }
+/* user_code：身份主数据，只读展示。 */
+.appearance-user-code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--text-faint); }
+.appearance-user-meta {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.appearance-user-error { margin-top: 10px; color: #c0392b; font-size: 12px; }
+/* 设置分组标题：弱化颜色、留出呼吸感 */
+.appearance-section-head {
+  margin-top: 18px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.appearance-section-head--first { margin-top: 0; }
+.appearance-mode-list { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 18px; padding: 4px; border-radius: 11px; background: var(--card-border); }
+.appearance-section-head--first + .appearance-mode-list { margin-top: 10px; }
+.appearance-mode-list button { height: 32px; border-radius: 8px; font-size: 12px; color: var(--text-dim); }
+.appearance-mode-list button.selected { background: var(--panel-bg); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.12); font-weight: 600; }
+.appearance-mode-list button:hover:not(.selected) { color: var(--text); }
+.appearance-wallpapers { margin-top: 18px; }
+.appearance-wallpaper-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.appearance-wallpaper-grid button { min-width: 0; padding: 0; text-align: center; font-size: 10px; color: var(--text-dim); }
+.appearance-wallpaper-grid button.selected { color: var(--text); font-weight: 600; }
+.appearance-wallpaper-grid button:disabled { opacity: .48; cursor: default; }
+.appearance-wallpaper-grid button:disabled .appearance-wallpaper-preview { filter: grayscale(1); }
+/* 壁纸缩略图：整张显示，不裁剪。
+   原本写死 height:58px + background-size:cover，而 6 张壁纸都是 16:9，
+   格子比例跟图对不上 → cover 会把上下（格子偏窄时是左右）切掉。
+   现在：外框按 16:9 走（aspect-ratio），图片 contain 居中留边而不切边；
+   选中框用 inset box-shadow 而不是 border —— border 会占掉 4px 内容区，
+   让 16:9 的框实际内容区比例对不上原图，contain 就会在两侧留细缝。 */
+.appearance-wallpaper-preview { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; margin-bottom: 6px; border-radius: 8px; background-color: var(--card-border); background-size: contain; background-position: center; background-repeat: no-repeat; box-shadow: inset 0 0 0 2px transparent; }
+.appearance-wallpaper-grid button.selected .appearance-wallpaper-preview { box-shadow: inset 0 0 0 2px var(--text); }
+.appearance-wallpaper-grid button:not(:disabled):hover .appearance-wallpaper-preview { filter: brightness(1.1); }
+.appearance-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--card-border); font-size: 13px; }
+.appearance-setting-row + .appearance-setting-row { margin-top: 12px; padding-top: 0; border-top: 0; }
+/* 无分隔线的普通设置行：与上下同组，只保留间距 */
+.appearance-setting-row.is-plain { padding-top: 0; border-top: 0; }
+/* 设置行下的补充说明（语音预览模式）：字号比正文小、颜色弱化，行宽跟着行文本左对齐。 */
+.appearance-setting-note { margin: 7px 0 0; font-size: 11.5px; line-height: 17px; color: var(--text-dim); }
+.appearance-setting-note b { color: var(--text); font-weight: 600; }
+/* 设置行 label 旁的括号内联说明（语音优先）：与 .appearance-setting-note 同口径，紧跟标题文字右侧。 */
+.appearance-setting-inline-note { margin-left: 6px; font-size: 11.5px; font-weight: 400; color: var(--text-dim); }
+.appearance-switch { width: 36px; height: 22px; padding: 2px; border-radius: 999px; background: var(--card-border); cursor: pointer; transition: background-color 160ms ease; }
+.appearance-switch[aria-checked="true"] { background: var(--text); }
+.appearance-switch span { display: block; width: 18px; height: 18px; border-radius: 50%; background: var(--panel-bg); box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform 160ms ease; }
+.appearance-switch[aria-checked="true"] span { transform: translateX(14px); }
+.appearance-switch:disabled { opacity: .4; cursor: default; }
+/* 通知提示音下拉：跟设置面板同色系，宽度按内容自适应 */
+.appearance-select {
+  height: 30px;
+  max-width: 132px;
+  padding: 0 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.appearance-select:hover { border-color: var(--text-dim); }
+.appearance-select:focus-visible { outline: 2px solid var(--accent, var(--text)); outline-offset: 1px; }
+/* Home 设置面板底部「Token 额度剩余」占位行：右侧数值用非斜体等宽数字，跟滑块取值同视觉。 */
+.appearance-quota-value { font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); }
+/* Home 设置面板底部「窗口操作」区：与上面的设置行用同款分隔线（border-top）隔开，
+   选项是整行按钮（新建窗口 / 关闭窗口·关闭全部），hover 高亮整行。 */
+.appearance-action-list {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--card-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* 相邻的 action 区（系统设置/关于 → Home 窗口操作）：收窄上边距，让两个区之间
+   的间隔与「系统设置/关于」区上方的间隔（18 + 1 + 14 ≈ 33px）基本一致，
+   上下 padding 视觉对称，又不会像叠加 padding-bottom 那样把间距撑大。 */
+.appearance-action-list + .appearance-action-list { margin-top: 14px; }
+.appearance-action-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+.appearance-action-item:hover { background: var(--hover); }
+.appearance-action-item:focus-visible { outline: 2px solid var(--accent, var(--text)); outline-offset: -1px; }
+
+/* 关于行：左「关于 + 版本号」为一个可点击整体（点进关于窗口），右为更新按钮。
+   整行自身不可点（hover 无背景），只有左侧链接与右侧按钮各自有反馈。 */
+.appearance-about-row { justify-content: space-between; cursor: default; }
+.appearance-about-row:hover { background: transparent; }
+.appearance-about-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.appearance-about-link:hover { background: var(--hover); }
+.appearance-about-link:focus-visible { outline: 2px solid var(--accent, var(--text)); outline-offset: -1px; }
+.appearance-update-version { color: var(--text-dim, var(--ink-soft)); font-size: 12px; }
+.appearance-update-btn {
+  padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  border: none; background: var(--text); color: var(--bg);
+  cursor: pointer; white-space: nowrap; transition: opacity .15s;
+}
+.appearance-update-btn:hover:not(:disabled) { opacity: .85; }
+.appearance-update-btn:disabled { opacity: .5; cursor: default; }
+/* 检查/安装结果提示：单行小字，右对齐跟随「关于」行 */
+.appearance-update-msg {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+  color: var(--text-dim);
+  word-break: break-word;
+}
+.appearance-update-msg.is-error { color: #e0574a; }
+@keyframes appearance-update-spin { to { transform: rotate(360deg); } }
+
+:root[data-skin="wp4"] {
+  --bg: #160f0d;
+  --text: #f6e9d6;
+  --text-dim: #c7ad98;
+  --text-faint: #9b7966;
+  --accent: #ed8a38;
+  --dock-bg: rgba(35, 24, 22, .58);
+  --card-bg: rgba(45, 30, 26, .78);
+  --card-border: rgba(238, 170, 92, .22);
+  --panel-bg: rgba(36, 27, 25, .93);
+  --ink: #f6e9d6;
+  --ink-soft: #c7ad98;
+  --line: rgba(238, 170, 92, .23);
+  --overlay-bg: #2b211e;
+  --hover: rgba(255, 168, 77, .1);
+  --send-bg: #e98532;
+  --send-ink: #23140f;
+}
+:root[data-skin="wp5"] {
+  --bg: #071522; --text: #e3f6ff; --text-dim: #9bbcc9; --text-faint: #7198a8;
+  --accent: #83bbd8; --dock-bg: rgba(10, 29, 42, .65); --card-bg: rgba(13, 37, 53, .82);
+  --card-border: rgba(143, 196, 216, .24); --panel-bg: rgba(11, 31, 45, .95);
+  --ink: #e3f6ff; --ink-soft: #9bbcc9; --line: rgba(143, 196, 216, .25);
+  --overlay-bg: #102b3b; --hover: rgba(130, 203, 226, .1); --send-bg: #83bbd8; --send-ink: #102633;
+}
+:root[data-skin="wp6"] {
+  --bg: #100d09; --text: #f4e5c1; --text-dim: #bea77e; --text-faint: #947c58;
+  --accent: #d6ad62; --dock-bg: rgba(28, 23, 18, .65);
+  --card-bg: rgba(32, 27, 22, .82); --card-border: rgba(214, 173, 98, .28);
+  --panel-bg: rgba(29, 24, 20, .95); --ink: #f4e5c1; --ink-soft: #bea77e;
+  --line: rgba(214, 173, 98, .3); --overlay-bg: #241e18;
+  --hover: rgba(245, 206, 128, .1); --send-bg: #d3a451; --send-ink: #33200e;
+}
+:root[data-skin="wp4"] .dock {
+  border-color: rgba(241, 169, 87, .28);
+  box-shadow: 0 16px 48px rgba(20, 8, 3, .48), inset 0 1px 0 rgba(255, 196, 111, .14);
+}
+:root[data-skin="wp4"] .appearance-wallpaper-grid button.selected .appearance-wallpaper-preview {
+  box-shadow: inset 0 0 0 2px #ffa94e;
+}
+:root[data-skin="wp4"] .appearance-switch[aria-checked="true"] { background: #e98532; }
+:root[data-skin="wp4"] .focus-window-control.close { --close-fill: #ad4930; --close-ink: #fff; }
+:root[data-skin="wp4"] .focus-window-control.minimize { background: #d78c40; }
+:root[data-skin="wp4"] .focus-window-control.maximize { background: #e3bb70; }
+/* Gold：以深铜、古金、香槟金区分三个操作，与鎏金壁纸相配。 */
+:root[data-skin="wp6"] .focus-window-control.close { --close-fill: #8c5631; --close-ink: #fff1d2; }
+:root[data-skin="wp6"] .focus-window-control.minimize { background: #bc8c40; }
+:root[data-skin="wp6"] .focus-window-control.maximize { background: #e1c47e; }
+:root[data-skin="wp6"] .focus-window-control.minimize svg,
+:root[data-skin="wp6"] .focus-window-control.maximize svg { stroke: #342210; }
+/* 动态壁纸与静态壁纸共用预览网格，下面显示选中皮肤的参数。 */
+.appearance-dynamic { margin-top: 18px; }
+.appearance-dynamic-row { display: flex; gap: 14px; align-items: center; }
+.appearance-dynamic-icon {
+  flex: 0 0 auto; width: 118px; min-width: 0; text-align: center;
+  font-size: 10px; color: var(--text-dim); background: transparent; border: 0; padding: 0; cursor: pointer;
+}
+.appearance-dynamic-icon .appearance-wallpaper-preview { width: 100%; height: auto; }
+.appearance-dynamic-icon[aria-pressed="true"] { color: var(--text); font-weight: 600; }
+.appearance-dynamic-icon[aria-pressed="true"] .appearance-wallpaper-preview { box-shadow: inset 0 0 0 2px var(--text); }
+.appearance-dynamic-icon:not([aria-pressed="true"]):hover .appearance-wallpaper-preview { filter: brightness(1.1); }
+.appearance-dynamic-sliders { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 7px; }
+.appearance-dynamic-grid { grid-template-columns: repeat(3, 1fr); }
+.appearance-dynamic-sliders { margin-top: 14px; }
+.appearance-slider { display: flex; flex-direction: column; gap: 3px; }
+.appearance-slider span { display: flex; justify-content: space-between; font-size: 11px; line-height: 1; color: var(--text-dim); }
+.appearance-slider em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--text); }
+.appearance-slider input[type="range"] { width: 100%; height: 18px; accent-color: #ff6a2b; }
+.appearance-dynamic-sliders--gold .appearance-slider input[type="range"] { accent-color: #d3a451; }
+.appearance-dynamic-sliders--water .appearance-slider input[type="range"] { accent-color: #83bbd8; }
+.appearance-wallpaper-grid { grid-template-columns: repeat(3, 1fr); }
+
+/* 帧率 HUD（F8 开关，dev 默认开、打包版默认关）。
+   fixed 定位 + 只改文本，不参与任何布局；pointer-events:none 保证永远不挡点击。 */
+.fps-badge {
+  position: fixed;
+  top: 10px;
+  left: 12px;
+  z-index: 9999;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 4px 8px 4px 7px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(14, 11, 9, .62);
+  color: #f8ecd9;
+  font: 500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  user-select: none;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.fps-badge strong { font-size: 13px; font-weight: 650; }
+.fps-badge span { opacity: .6; }
+.fps-badge em { font-style: normal; opacity: .45; margin-left: 3px; }
+
+/* 联系人数域：传统通讯录列表，独立于聊天窗口。 */
+.contacts-app { flex: 1; min-height: 0; overflow: auto; padding: 26px 30px 36px; background: var(--panel-bg); color: var(--text); }
+.contacts-empty h2 { margin: 0; font-size: 22px; }
+.contacts-muted, .contacts-empty p { color: var(--text-dim); font-size: 13px; }
+/* 联系人列表内容允许鼠标选中（全局 html/body 是 user-select:none，这里放开，便于复制用户名等） */
+.contacts-window .contacts-app { user-select: text; }
+.contacts-window .contacts-app button { user-select: none; }
+.contacts-search { width: 100%; padding: 7px 12px; border: 1px solid var(--card-border); border-radius: 10px; background: var(--panel-bg); color: var(--text); font: inherit; font-size: 13px; }
+.contacts-search:focus { outline: 1px solid var(--text-dim); outline-offset: 1px; }
+.contacts-section { margin-top: 26px; }
+/* 紧跟搜索框的第一个区块（平时是「好友邀请」，搜索时是「搜索结果」）与搜索框间距收窄 */
+.contacts-search + .contacts-section { margin-top: 14px; }
+.contacts-section h3 { margin: 0 0 10px; font-size: 15px; }
+/* 计数徽章跟主按钮同一套：--text 底 / --bg 字，深浅主题自动反转，不再用绿色 #2a9d74。 */
+.contacts-section h3 em { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--text); color: var(--bg); font: normal 11px sans-serif; }
+.contacts-row { display: flex; align-items: center; gap: 12px; min-height: 62px; padding: 10px 0; border-top: 1px solid var(--card-border); }
+/* 头像同样是灰阶：--card-border 的浅灰圆底 + --text 字，不再用薄荷绿/墨绿 #d9f3e9 / #176b51。 */
+.contacts-avatar { display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 50%; background: var(--card-border); color: var(--text); font-weight: 700; }
+/* 好友设了头像时直接显示图片（http(s) 或 data:image/webp 的 data URL），裁成圆形；
+   加载失败由组件回落到首字母，所以这里不用管 fallback 样式。 */
+.contacts-avatar--photo { object-fit: cover; object-position: center; background: var(--card-border); }
+.contacts-person { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.contacts-person strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.contacts-person small { color: var(--text-dim); font-size: 12px; }
+/* 联系人数域按钮：黑白灰（原先统一是绿色 #2a9d74）。底色取 --text、文字取 --bg，
+   深浅主题自动反转（深色=浅底深字 / 浅色=深底浅字），与登录页主按钮同一观感。 */
+.contacts-row button, .contacts-empty button { border: 0; border-radius: 8px; padding: 8px 13px; background: var(--text); color: var(--bg); font: inherit; font-size: 12px; cursor: pointer; }
+.contacts-row button:hover, .contacts-empty button:hover { opacity: .85; }
+.contacts-row button.secondary { background: var(--card-border); color: var(--text); opacity: 1; }
+.contacts-row button.secondary:hover { background: var(--hover-strong, var(--card-border)); }
+.contacts-row button.danger { background: transparent; color: #c0392b; border: 1px solid rgba(192, 57, 43, .45); }
+.contacts-row button.danger:hover { background: rgba(192, 57, 43, .08); opacity: 1; }
+.contacts-row button:disabled { opacity: .5; cursor: default; }
+.contacts-empty { display: grid; justify-items: start; align-content: center; height: 100%; gap: 12px; }
+.contacts-empty p { margin: 0 0 8px; }
+.contacts-error { margin-top: 10px; color: #c0392b; font-size: 13px; }
+/* 好友邀请角标：压在图标右上角、**允许探出胶囊外**（macOS 那种角标）。
+   之前被裁，是因为 `.dock` 用 overflow 做横向滚动，999px 圆角会把角落裁掉一块；
+   现在 `.dock` 默认 overflow: visible（只有图标多到放不下时才退回滚动），角标可以正常外露。
+   z-index 抬到 icon-wrap 之上：图标容器带 filter（自成层叠上下文），相邻 Dock 项也会互相压，
+   角标必须明确盖过它们；Dock 自身是 z-index:1000 的层叠上下文，角标作为它的后代天然画在
+   Dock 背景/边框之上。 */
+/* Update indicator mirrors the unread badge. */
+.dock-update-badge {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  border: 0;
+  border-radius: 50%;
+  background: #2876c7;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .4);
+  cursor: pointer;
+  z-index: 5;
+  /* 角标只负责引导：点击打开外观菜单（右键菜单同款），
+     真正安装仍在菜单「关于」行里确认，避免一次误点就重启应用。 */
+}
+.dock-update-badge svg { width: 100%; height: 100%; }
+.dock-update-badge:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+.dock-update-badge:disabled { cursor: wait; opacity: .75; }
+
+.contacts-dock-badge {
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: #e44848;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  z-index: 5;
+}

@@ -1,0 +1,95 @@
+/* 页面级微调：closing 单行、footer 只留居中版权。不改 datainsight.css 源样式 */
+.ds-scope .closing h2 {
+  color: #1e1e1b;
+  font-size: clamp(30px, 2.6vw, 38px);
+  letter-spacing: -.04em;
+  white-space: nowrap;
+}
+.ds-scope .closing h2 em { color: #1e1e1b; font-style: normal; }
+
+.ds-scope .footer {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 34px 0 38px;
+}
+.ds-scope .footer p {
+  font-size: 11px;
+  color: #7c7c74;
+  letter-spacing: .04em;
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .ds-scope .closing h2 { white-space: normal; font-size: clamp(26px, 6vw, 32px); }
+}
+
+/* 页面级字号上调：原 datainsight.css 里 8–12px 的正文/标签太小，统一抬一档 */
+.ds-scope .closing p { font-size: 15px; line-height: 1.9; color: #4a4a45; }
+.ds-scope .footer p { font-size: 12.5px; }
+.ds-scope .header nav,
+.ds-scope .header-link { font-size: 13px; }
+.ds-scope .hero-meta span { font-size: 12.5px; }
+.ds-scope .model-note p { font-size: 13px; }
+.ds-scope .intelligence-insight p { font-size: 14px; }
+.ds-scope .intelligence-sources { font-size: 12px; }
+.ds-scope .space-heading p,
+.ds-scope .diagram-stage p { font-size: 13.5px; }
+.ds-scope .space-caption,
+.ds-scope .figure-caption { font-size: 12px; color: #6f6f68; }
+.ds-scope .token-sequence span { font-size: 12px; }
+.ds-scope .domain-card p { font-size: 13px; }
+.ds-scope .domain-tags span,
+.ds-scope .source-pills span { font-size: 12px; }
+.ds-scope .problem-sources div { font-size: 13px; }
+.ds-scope .problem-model small { font-size: 12.5px; }
+.ds-scope .problem-visual-foot { font-size: 12px; }
+.ds-scope .time-point span { font-size: 12px; }
+.ds-scope .time-point strong { font-size: 13.5px; }
+.ds-scope .webgl-fallback { font-size: 13.5px; }
+
+/* 首屏：像 intro 的 hero 一样站得更开 */
+.ds-scope .hero {
+  min-height: 760px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.ds-scope .hero-copy { padding: 110px 0 130px; }
+.ds-scope .hero-kicker {
+  font-size: clamp(23px, 2.05vw, 29px);
+  letter-spacing: .05em;
+  margin: 0 0 40px;
+  color: #2a2a26;
+}
+.ds-scope .hero h1 {
+  font-size: clamp(88px, 8.6vw, 132px);
+  line-height: 1.06;
+  letter-spacing: -.07em;
+}
+.ds-scope .hero-description {
+  font-size: clamp(20px, 1.75vw, 24px);
+  margin-top: 44px;
+  color: #6b6b63;
+  letter-spacing: .01em;
+}
+@media (max-width: 860px) {
+  .ds-scope .hero { min-height: 520px; }
+  .ds-scope .hero-copy { padding: 70px 0 80px; }
+}
+
+/* 三维场景挂载前的占位提示：避免首屏出现一块空白 */
+.ds-scope .scene-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #a3a3a0;
+  pointer-events: none;
+}

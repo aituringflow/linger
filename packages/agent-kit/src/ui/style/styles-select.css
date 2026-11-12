@@ -1,0 +1,11 @@
+/* 原生下拉统一使用内收的箭头；记忆面板已有独立 SVG 箭头。 */
+:is(.cowork-settings select, .chat-split-pane-head select, .au-usage-toolbar select) {
+  appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%238b95a5' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 6 4.5 4.5L12.5 6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 14px 14px;
+}
+.chat-memory-select-wrap select { padding-right: 38px; }
+.chat-memory-select-wrap > svg { right: 14px; }

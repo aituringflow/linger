@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AgentOS Launcher 应用图标 · 深色版。
+     画布 1024 透明，图案按 macOS 常规图标网格缩到 824（每边留 100px 透明边距），
+     这样 Dock / Launchpad 里的视觉尺寸与系统应用一致；此前图案撑满 1024，
+     在 Dock 里会比别的 App 明显大一圈。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <g transform="translate(512 512) scale(0.8047) translate(-512 -512)">
+    <circle cx="512" cy="512" r="510" fill="#292a2d"/>
+    <circle cx="512" cy="512" r="296" fill="none" stroke="#eeeeef" stroke-width="49.7" stroke-linecap="round" stroke-dasharray="464.8 464.8" stroke-opacity="0.88" transform="rotate(-45 512 512)"/>
+    <circle cx="512" cy="512" r="89.4" fill="#eeeeef"/>
+  </g>
+</svg>

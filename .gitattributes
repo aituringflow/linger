@@ -1,0 +1,27 @@
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF so PowerShell 5.1 can run them
+*.ps1  text eol=crlf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ico  binary
+
+# Binary assets
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.icns  binary
+*.mp4   binary
+*.webm  binary
+*.mov   binary
+*.ttf   binary
+*.woff  binary
+*.woff2 binary
+*.traineddata binary
+
+# Generated or vendored content that should not skew language stats
+packages/agent-kit/dist/** linguist-generated=true linguist-vendored=true
+apps/web/.next/**        linguist-generated=true linguist-vendored=true
+package-lock.json        linguist-generated=true

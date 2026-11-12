@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@turingflow/agent-kit": ["../../packages/agent-kit/src/server/index.ts"],
+      "@turingflow/agent-kit/ui": ["../../packages/agent-kit/src/ui/index.ts"],
+      "@turingflow/agent-kit/styles.css": ["../../packages/agent-kit/src/ui/style/styles.css"],
+      "@turingflow/agent-kit/ota": ["../../packages/agent-kit/src/server/ota-client.ts"],
+      "@turingflow/agent-kit/ota/server": ["../../packages/agent-kit/src/server/ota-server.ts"]
+    }
+  }
+}

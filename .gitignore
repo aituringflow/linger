@@ -1,0 +1,69 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+# 锁文件不提交：monorepo 跨平台（Mac 生成 / Windows 构建）时，npm 的 optional 原生包
+# 会因锁文件缺对方平台条目而装不上（npm bug #4828）。各平台各自 npm install 按当前平台解析。
+# 因此 CI 用 npm install 而非 npm ci，见 .github/workflows/ci.yml。
+package-lock.json
+node_modules/
+
+# dotenv environment variables file
+.env
+.env.test
+.cert/
+
+# Build output
+dist
+build
+.next
+out
+*.tsbuildinfo
+
+# Playwright persistent-context profile (web-fetch tool sessions)
+.web-fetch-profile/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+
+# Local application data
+agent-output/
+.agent/
+.agent-files/
+.workbuddy/
+.browser-agent-profile/
+.shots/
+attachments/
+apps/web/data/
+apps/web/ota-releases/
+apps/desktop/resources/app-icon/_backup/
+papers
+
+# 状态栏原生采集器（编译产物，跑 npm run dev/build 时自动生成）
+apps/desktop/resources/statusctl
+apps/desktop/resources/wechat-windowctl
+apps/desktop/resources/wechat-monitor
+apps/desktop/resources/wechat-notifications
+.harness-check
+.harness
+tmp/
+
+# 内部运维脚本与部署产物，只在私有环境使用，不入公开仓库
+deploy/
+
+# OCR 语言包：tesseract.js 首次识别时自行下载到 <app>/knowledge/ocr 缓存目录，
+# 7MB+ 的二进制模型不该进仓库（也不参与打包）。
+*.traineddata

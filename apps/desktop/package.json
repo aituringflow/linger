@@ -43,7 +43,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/utif": "^3.0.6",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.3.0",
     "electron": "44.7.0",
     "electron-builder": "^26.0.0",
     "electron-vite": "^5.0.0",

@@ -39,7 +39,7 @@ function defaultState(): LauncherState {
       { id: "d-app-mail", kind: "app", label: "邮件", appId: "mail" },
       { id: "d-app-settings", kind: "app", label: "设置", appId: "settings" },
     ],
-    dockPins: { left: [], right: ["settings"] },
+    dockPins: { left: [], right: [] },
     apps: [
       { id: "knowledge", name: "知识库" },
       { id: "files", name: "文件" },

@@ -1,3 +1,5 @@
+import { ASSISTANT_NAME } from "../../../shared/assistant-name.ts";
+
 export const zh = {
   previous: "上一题", nextQuestion: "下一题", multi: "（可多选）", other: "其他（自定义输入）",
   otherPlaceholder: "没有合适的选项？在此输入你的答案…", submitAnswers: "✓ 提交答案",
@@ -42,7 +44,7 @@ export const zh = {
   modelPlaceholder: "模型加载中，就绪后即可发送（可继续输入）…",
   busyPlaceholder: "回复生成中…输入内容后回车排队，或点队列项右侧的插话图标立即引导",
   workWith: "和 {name} 一起工作",
-  assistant: "AI 助手",
+  assistant: ASSISTANT_NAME,
   yesterday: "昨天 {time}",
   waitingBrowser: "等待浏览器执行动作…",
   askUser: "向你提问",

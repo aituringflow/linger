@@ -1163,8 +1163,10 @@ ${fastIsAiMessage
         CASE WHEN cowork_reply_policy='custom' THEN COALESCE(cowork_fast_prompt,'') ELSE '' END
       FROM agent_sessions WHERE id=$2
       ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,updated_at=now()
-      WHERE cowork_agents.name=$4 AND cowork_agents.name<>EXCLUDED.name`,
-      [`${sessionId}:default`, sessionId, getAppDisplayName(), AI_DISPLAY_NAME]);
+      WHERE cowork_agents.name<>EXCLUDED.name
+        AND NOT EXISTS (SELECT 1 FROM cowork_agents other
+          WHERE other.session_id=cowork_agents.session_id AND other.id<>cowork_agents.id AND lower(other.name)=lower(EXCLUDED.name))`,
+      [`${sessionId}:default`, sessionId, AI_DISPLAY_NAME]);
     return { user, session, pool, twoPerson, adminRoster, isAdmin };
   }
 

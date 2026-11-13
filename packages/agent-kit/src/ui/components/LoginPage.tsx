@@ -13,6 +13,7 @@
  */
 import type { ReactNode } from "react";
 import { BuiltinLoginForm } from "./BuiltinLoginForm.tsx";
+import { ASSISTANT_NAME } from "../../shared/assistant-name.ts";
 
 export interface LoginProviderOption {
   /** 登录方式标识：dingtalk | feishu | builtin（builtin 自建登录待实现，类型先留口子） */
@@ -25,7 +26,7 @@ export interface LoginPageProps {
   /** API 根路径（= cookiePath，如 /agent；登录端点都基于它） */
   basePath: string;
   /**
-   * 页面标题（默认 "AI 助手"）。
+   * 页面标题（默认使用助手名称）。
    * 登录页不再绘制标题——只作为 <main> 的无障碍名称，避免卡片顶部再出现一行 "Agent"。
    */
   title?: string;
@@ -82,7 +83,7 @@ document.documentElement.setAttribute("data-theme",t);
 
 export function LoginPage({
   basePath,
-  title = "AI 助手",
+  title = ASSISTANT_NAME,
   logoUrl,
   error,
   next,

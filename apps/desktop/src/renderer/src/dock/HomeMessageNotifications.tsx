@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { summarizeForNotify } from "@turingflow/agent-kit/ui";
+import { ASSISTANT_NAME, summarizeForNotify } from "@turingflow/agent-kit/ui";
 import { useLauncher } from "../state";
 import { playLauncherNotificationSound } from "./notificationSound";
 
@@ -20,7 +20,7 @@ export default function HomeMessageNotifications({ baseUrl, onMessage }: { baseU
       const message = data.messages?.slice().reverse().find(item => !item.revokedAt);
       if (!message || (message.role !== "user" && message.role !== "assistant") || (message.role === "user" && message.senderSub === ownSub) || message.id <= (seen.get(sessionId) ?? 0)) return;
       seen.set(sessionId, message.id);
-      const title = message.senderName?.trim() || (message.role === "assistant" ? "AI 助手" : "新消息");
+      const title = message.senderName?.trim() || (message.role === "assistant" ? ASSISTANT_NAME : "新消息");
       if (sound !== "system") playLauncherNotificationSound(sound, `launcher-primary-${sessionId}`);
       void window.launcher.showNotification({ windowId: "primary", sessionId, runId: `message-${message.id}`,
         title, body: summarizeForNotify(message.content || "[附件]"), silent: sound !== "system" });

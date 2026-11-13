@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { ASSISTANT_NAME } from "../../shared/assistant-name.ts";
 import AgentWindow from "../AgentWindow.tsx";
 import { useAgentAuth } from "../useAgentAuth.ts";
 import type { ChatUser, Scene, UiMessage } from "../chat/types.ts";
@@ -22,7 +23,7 @@ export interface SideChatProps<T = string> extends Omit<SideChatOptions<T>, "onE
 
 /** An isolated instance of the same conversation pane used by AgentWindow. */
 export function SideChat<T = string>({
-  basePath = "", saveSession = false, title, heading = "AI 助手", placeholder,
+  basePath = "", saveSession = false, title, heading = ASSISTANT_NAME, placeholder,
   emptyMessage, systemPrompt, context, model, agentMode, parseResult, onResult, onError, authUser, chatEndpoint, scenes = null,
 }: SideChatProps<T>) {
   const { loading, user: sessionUser } = useAgentAuth(basePath);

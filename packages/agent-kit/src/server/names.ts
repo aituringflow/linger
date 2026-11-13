@@ -7,7 +7,9 @@
  * 注意：当前为进程级缓存（单宿主部署）。若未来一个进程服务多个不同应用名的宿主，
  * 需改为按会话 / 按租户隔离缓存，避免串名。
  */
-export const AI_DISPLAY_NAME = "Agent";
+import { ASSISTANT_NAME } from "../shared/assistant-name.js";
+
+export const AI_DISPLAY_NAME = ASSISTANT_NAME;
 
 let appDisplayName = "";
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type MouseEvent } from "react";
-import { CHAT_MIN_WIDTH, summarizeForNotify } from "@turingflow/agent-kit/ui";
+import { ASSISTANT_NAME, CHAT_MIN_WIDTH, summarizeForNotify } from "@turingflow/agent-kit/ui";
 import { useLauncher, isHomeChatWindow } from "../state";
 import { isArtifactFileDrag, readDraggedFiles, toLocalAttachments } from "../fileDrop";
 import { wallpaperSkinId } from "../wallpapers";
@@ -416,7 +416,7 @@ export default function QuickInput({ onTextPresenceChange, onContentPresenceChan
               windowId,
               sessionId,
               runId,
-              title: title || "AI 助手",
+              title: title || ASSISTANT_NAME,
               body: summarizeForNotify(text),
               // 自定义音效 / 静音由渲染层自己处理，系统不要再叠一声。
               silent: sound !== "system",

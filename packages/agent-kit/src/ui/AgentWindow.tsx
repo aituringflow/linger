@@ -1,5 +1,7 @@
 "use client";
 
+import { ASSISTANT_NAME } from "../shared/assistant-name.ts";
+
 import { ChatLocaleProvider, useChatTranslation } from "./chat/i18n.tsx";
 
 // agent-kit · AgentWindow（对话状态与内容页装配）
@@ -2083,7 +2085,7 @@ function AgentWindowContent({
       const last = [...messages].reverse().find((m) => m.role === "assistant");
       if (last && last.content && last.content.trim()) {
         showNotification(
-          currentSessionTitle || "AI 助手",
+          currentSessionTitle || ASSISTANT_NAME,
           summarizeForNotify(last.content),
           `agent-notify-${activeSid}`,
           { kind: "ai-reply", sessionId: activeSid },

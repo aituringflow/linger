@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { summarizeForNotify } from "@turingflow/agent-kit/ui";
+import { ASSISTANT_NAME, summarizeForNotify } from "@turingflow/agent-kit/ui";
 import { LauncherApp } from "../LauncherApp";
 import { localAgentUrl } from "../localAgentUrl";
 import { playLauncherNotificationSound } from "../dock/notificationSound";
@@ -44,7 +44,7 @@ export default function Workspace() {
                 windowId: "workspace",
                 sessionId,
                 runId,
-                title: title || "AI 助手",
+                title: title || ASSISTANT_NAME,
                 body: summarizeForNotify(text),
                 silent: sound !== "system",
               }).catch((error) => console.warn("[launcher] 发送通知失败：", error));

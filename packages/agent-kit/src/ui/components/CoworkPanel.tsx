@@ -1,6 +1,7 @@
 "use client";
 
 import { useChatTranslation } from "../chat/i18n.tsx";
+import { ASSISTANT_NAME } from "../../shared/assistant-name.ts";
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -374,18 +375,27 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
   const [model, setModel] = useState(() => (isNewGroupSeed ? (initialModel || "") : ""));
   const [codexModel, setCodexModel] = useState(() => (isNewGroupSeed ? (initialCodexModel || "") : ""));
   const [groupAgents, setGroupAgents] = useState<CoworkAgentInfo[]>([]);
+  const agentsSyncedAfterState = useRef(false);
   useEffect(() => {
     // 新建群的成员还未落库时 /agents 会返回 not_group；成员保存后必须重新请求。
     if (!members.length) return;
     let cancelled = false;
-    const reload = () => { void apiFetch(`${basePath}/api/cowork/${encodeURIComponent(sessionId)}/agents`, { cache: "no-store" })
-      .then(response => response.ok ? response.json() : null)
-      .then((data: { agents?: CoworkAgentInfo[] } | null) => { if (!cancelled && data?.agents) setGroupAgents(data.agents); })
-      .catch(() => {}); };
+    let request = 0;
+    const endpoint = `${basePath}/api/cowork/${encodeURIComponent(sessionId)}/agents`;
+    const reload = () => {
+      const current = ++request;
+      void (async () => {
+        const response = await apiFetch(endpoint, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json() as { agents?: CoworkAgentInfo[] };
+        if (!data.agents || cancelled) return;
+        if (current === request) setGroupAgents(data.agents);
+      })().catch(() => {});
+    };
     const changed = (event: Event) => { if ((event as CustomEvent<{ sessionId: string }>).detail?.sessionId === sessionId) reload(); };
     reload(); window.addEventListener("cowork-agents-changed", changed);
     return () => { cancelled = true; window.removeEventListener("cowork-agents-changed", changed); };
-  }, [basePath, sessionId, members.length]);
+  }, [basePath, sessionId, members.length, title]);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [attachments, setAttachments] = useState<UiAttachment[]>(initialSubmission?.attachments ?? []);
   const [uploading, setUploading] = useState(false);
@@ -620,6 +630,11 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
       });
       if (!initialized.current && next.settings) {
         initialized.current = true;
+        // /agents 可能先于 /state?title=... 返回旧默认名；状态请求完成后重新读取。
+        if (!agentsSyncedAfterState.current) {
+          agentsSyncedAfterState.current = true;
+          window.dispatchEvent(new CustomEvent("cowork-agents-changed", { detail: { sessionId } }));
+        }
         // 群设置未配置时回退继承升级前会话的框架/模型（见设置同步 effect 注释）
         setMode(modes.includes(next.settings.cowork_mode) ? next.settings.cowork_mode : (initialMode && modes.includes(initialMode) ? initialMode : modes[0] || "codebuddy"));
         setModel(next.settings.cowork_model || (initialModel || "") || models[0]?.id || "");
@@ -632,6 +647,7 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
   useEffect(() => {
     closedRef.current = false;
     initialized.current = false;
+    agentsSyncedAfterState.current = false;
     lastId.current = 0;
     lastMarkedRead.current = 0;
     setReadDetails(null);
@@ -748,13 +764,13 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
   const settingsLabel = isGroupChat ? "群设置" : "会话设置";
   // 首条消息发送前群尚未落库，服务端无法返回默认 AI；先用应用名展示候选。
   const pendingDefaultAgent = useMemo(() => !members.length && pendingMembers.length > 0 && !groupAgents.length
-    ? [{ id: `${sessionId}:default`, name: title || "Agent", avatar: "" }]
+    ? [{ id: `${sessionId}:default`, name: title || ASSISTANT_NAME, avatar: "" }]
     : [], [members.length, pendingMembers.length, groupAgents.length, sessionId, title]);
-  // @ 提及候选：@所有人（仅群聊）+ AI 助手 + 发起人 + 已加入成员 + 待加入成员；去重交给 hook。
+  // @ 提及候选包含群 AI 和群成员；去重交给 hook。
   const mentionCandidates = useMemo(() => [
     ...(isGroupChat ? [{ id: "all", name: "所有人", avatar: "" }] : []),
     ...pendingDefaultAgent,
-    ...(!pendingDefaultAgent.length && !groupAgents.some(agent => agent.enabled) ? [{ id: "agent", name: title || "AI 助手", avatar: "" }] : []),
+    ...(!pendingDefaultAgent.length && !groupAgents.some(agent => agent.enabled) ? [{ id: "agent", name: title || ASSISTANT_NAME, avatar: "" }] : []),
     ...groupAgents.filter(agent => agent.enabled).map(agent => ({ id: agent.id, name: agent.name, avatar: "" })),
     ...(state?.ownerSub && state.ownerSub !== selfSub ? [{ id: `owner:${state.ownerSub}`, name: state.ownerName || "发起人", avatar: state.ownerAvatar || "" }] : []),
     ...members.map(member => ({ id: member.contactId, name: member.name, avatar: member.avatar })),

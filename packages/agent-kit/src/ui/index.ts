@@ -150,3 +150,4 @@ export * from "./icons/ToolIcons.tsx";
 export { Avatar } from "./shared/AvatarView.tsx";
 export type { AvatarProps } from "./shared/AvatarView.tsx";
 export { ChatLocaleProvider } from './chat/i18n.tsx';
+export { ASSISTANT_NAME } from "../shared/assistant-name.ts";

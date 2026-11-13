@@ -2,7 +2,7 @@ import { useTranslation } from "./i18n";
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AgentApp, type AgentAppProps } from "@turingflow/agent-kit/ui";
+import { AgentApp, ASSISTANT_NAME, type AgentAppProps } from "@turingflow/agent-kit/ui";
 import { LauncherToolbar } from "./LauncherToolbar";
 import { enabledComputeProviders, useLauncher } from "./state";
 import { availableAgentModes, cacheProviders, readCachedProviders } from "./computeProviderAvailability";
@@ -80,5 +80,5 @@ export function LauncherApp({ preview = false, newChatOnMount, authMode = "local
     () => modeKey.split(",").filter((mode): mode is "codebuddy" | "codex" | "dsh" => mode === "codebuddy" || mode === "codex" || mode === "dsh"),
     [modeKey],
   );
-  return <AgentApp {...props} locale={locale} voiceHoldEnabled={state.launcher?.rightCtrlVoice ?? true} agentModesOverride={agentModesOverride} agentModesPending={!providers || props.agentModesPending === true} toolbar={<LauncherToolbar />} renderCoworkToolbar={settings => <LauncherToolbar conversationSettings={settings} />} authMode={authMode} themeManagedByHost showNavigation={false} layoutMode={layoutMode} newChatOnMount={startNewChat} closePanelsOnNewChat={closePanels} keepSidebarOnNewChat={keepSidebarOnNewChat} openSidebarOnMount={openSidebar} defaultPermissionMode="full" permissionLocked permissionPreferenceKey="launcher:permission-mode" composerPlaceholder={t("chat.placeholder")} emptyMessage="" className={`is-launcher is-launcher-${preview ? "preview" : "focus"}`} />;
+  return <AgentApp {...props} title={props.title ?? ASSISTANT_NAME} locale={locale} voiceHoldEnabled={state.launcher?.rightCtrlVoice ?? true} agentModesOverride={agentModesOverride} agentModesPending={!providers || props.agentModesPending === true} toolbar={<LauncherToolbar />} renderCoworkToolbar={settings => <LauncherToolbar conversationSettings={settings} />} authMode={authMode} themeManagedByHost showNavigation={false} layoutMode={layoutMode} newChatOnMount={startNewChat} closePanelsOnNewChat={closePanels} keepSidebarOnNewChat={keepSidebarOnNewChat} openSidebarOnMount={openSidebar} defaultPermissionMode="full" permissionLocked permissionPreferenceKey="launcher:permission-mode" composerPlaceholder={t("chat.placeholder")} emptyMessage="" className={`is-launcher is-launcher-${preview ? "preview" : "focus"}`} />;
 }

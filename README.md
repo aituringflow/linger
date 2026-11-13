@@ -54,9 +54,9 @@ Index local content and search it in conversation using natural language.
 
 ## Collaboration
 
-Share discussion context with people and AI in group chats. Ask for private reply suggestions and decide whether to send them yourself.
+Collaborate with your team and Linger in group chats, create artifacts from shared context, and refine them with feedback.
 
-![Collaboration example](docs/images/collaboration.webp)
+![Group collaboration and artifact iteration](docs/images/collaboration.gif)
 
 ## Contributing
 

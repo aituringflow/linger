@@ -35,6 +35,19 @@ const appDir = path.join(repoRoot, "apps", "desktop");
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
 const ARCH = process.arch;
+// Windows distribution is configured for x64, including when built on ARM64.
+const TARGET_ARCH = IS_WIN ? "x64" : ARCH;
+const codexTargets = {
+  "darwin-arm64": "aarch64-apple-darwin",
+  "darwin-x64": "x86_64-apple-darwin",
+  "win32-x64": "x86_64-pc-windows-msvc",
+};
+const codexTarget = `${process.platform}-${TARGET_ARCH}`;
+const codexTriple = codexTargets[codexTarget];
+function codexFiles(root) {
+  const pkg = path.join(root, "node_modules", "@openai", `codex-${codexTarget}`);
+  return [path.join(pkg, "package.json"), path.join(pkg, "vendor", codexTriple ?? "", "bin", IS_WIN ? "codex.exe" : "codex")];
+}
 
 function resolveBin(name) {
   const file = IS_WIN ? `${name}.cmd` : name;
@@ -197,6 +210,11 @@ if (!DRY_RUN && warnIfAppRunning()) {
   log("已指定 --force，跳过检查继续执行");
 }
 
+if (!DRY_RUN && (!codexTriple || codexFiles(repoRoot).some((file) => !fs.existsSync(file)))) {
+  console.error(`✗ 缺少打包目标的 Codex 平台包：@openai/codex-${codexTarget}。请安装该目标平台的依赖后重新打包。`);
+  process.exit(1);
+}
+
 // The watcher and packaging must never write the same output tree.
 const packageTemp = DRY_RUN ? path.join(os.tmpdir(), "linger-package-<temporary>") : fs.mkdtempSync(path.join(os.tmpdir(), "linger-package-"));
 const packageOut = path.join(packageTemp, "out");
@@ -267,7 +285,7 @@ if (!DRY_RUN) {
 // --- 3. electron-builder 打包 -------------------------------------------------
 step(3, TOTAL, IS_SETUP ? "打包并生成安装包" : "打包免安装版（--dir）");
 const builderArgs = [];
-if (IS_WIN) builderArgs.push("--win");
+if (IS_WIN) builderArgs.push("--win", "--x64");
 else if (IS_MAC) builderArgs.push("--mac");
 else {
   console.error(`✗ 不支持的平台：${process.platform}`);
@@ -307,6 +325,12 @@ if (IS_WIN) {
 
 if (!fs.existsSync(exePath)) {
   console.error(`✗ 未找到主程序：${exePath}`);
+  process.exit(1);
+}
+
+const resourcesDir = IS_WIN ? path.join(productDir, "resources") : path.join(productDir, "Contents", "Resources");
+if (codexFiles(resourcesDir).some((file) => !fs.existsSync(file))) {
+  console.error(`✗ 打包产物缺少 Codex 平台包：@openai/codex-${codexTarget}。请检查依赖安装后重新打包。`);
   process.exit(1);
 }
 

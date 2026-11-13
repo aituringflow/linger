@@ -22,7 +22,12 @@ export function getCodexCliPath(): string {
   if (!entry) throw new Error(`不支持的 Codex 平台：${target}`);
   // Resolve at runtime by path. A dynamic require.resolve of an optional platform
   // package makes Turbopack try to bundle every platform during the Web build.
-  const starts = [process.cwd(), path.dirname(fileURLToPath(import.meta.url))];
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  const starts = [
+    ...(resourcesPath ? [resourcesPath] : []),
+    process.cwd(),
+    path.dirname(fileURLToPath(import.meta.url)),
+  ];
   let packageJson: string | undefined;
   for (const start of starts) {
     for (let dir = start; ; dir = path.dirname(dir)) {

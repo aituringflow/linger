@@ -39,6 +39,11 @@ files:
 
 # 原生二进制与图标：打包后位于 process.resourcesPath 根目录
 extraResources:
+  # Codex SDK 的平台可执行文件必须位于 asar 外，供子进程直接启动。
+  - from: ../../node_modules/@openai
+    to: node_modules/@openai
+    filter:
+      - "codex-*/**/*"
   # Client configuration is bundled as-is and must contain no secrets.
   - from: .env
     to: .env

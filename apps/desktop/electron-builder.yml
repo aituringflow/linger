@@ -30,6 +30,8 @@ files:
   - "!**/release/**"
   - "!**/native/**"
   - "!**/node_modules/onnxruntime-node/bin/**"
+  # 平台包由 extraResources 单独复制，避免依赖收集再次放入 asar.unpacked。
+  - "!**/node_modules/@openai/codex-*/**"
   # DSH plugins declare many runtime peer dependencies, which electron-builder's
   # npm dependency walker does not collect from a workspace package.
   - from: ../../node_modules/@deepseek-ai

@@ -333,6 +333,17 @@ if (codexFiles(resourcesDir).some((file) => !fs.existsSync(file))) {
   console.error(`✗ 打包产物缺少 Codex 平台包：@openai/codex-${codexTarget}。请检查依赖安装后重新打包。`);
   process.exit(1);
 }
+if (codexFiles(path.join(resourcesDir, "app.asar.unpacked")).some((file) => fs.existsSync(file))) {
+  console.error(`✗ Codex 平台包被重复打包：@openai/codex-${codexTarget}。`);
+  process.exit(1);
+}
+const codexExecutable = codexFiles(resourcesDir)[1];
+const codexCheck = spawnSync(codexExecutable, ["--version"], { encoding: "utf8", timeout: 30000, windowsHide: true });
+if (codexCheck.error || codexCheck.status !== 0) {
+  console.error(`✗ 打包的 Codex CLI 无法启动：${codexCheck.error?.message || codexCheck.stderr || `退出码 ${codexCheck.status}`}`);
+  process.exit(1);
+}
+log(`Codex CLI 校验通过：${codexCheck.stdout.trim()}`);
 
 // 安装包（setup）
 if (IS_SETUP) {

@@ -500,10 +500,17 @@ if (wechatViewerChild) {
       notification.on("close", () => {
         if (notificationsByRoute.get(routeKey) === notification) notificationsByRoute.delete(routeKey);
       });
+      notification.on("show", () => {
+        console.log("[launcher:notify] 系统已报告通知显示", { routeKey });
+      });
+      notification.on("failed", (_event, error) => {
+        console.warn("[launcher:notify] 系统通知失败", { routeKey, error });
+        if (notificationsByRoute.get(routeKey) === notification) notificationsByRoute.delete(routeKey);
+      });
       try {
-        console.log("[launcher:notify] about to show notification:", { title, body, routeKey });
+        console.log("[launcher:notify] 请求显示系统通知", { routeKey, packaged: app.isPackaged, executable: process.execPath });
         notification.show();
-        console.log("[launcher:notify] notification.show() returned OK");
+        console.log("[launcher:notify] 已提交通知请求，等待系统结果");
       } catch (error) {
         console.warn("[launcher:notify] 显示系统通知失败：", error);
         return false;

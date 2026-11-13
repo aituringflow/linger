@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
   id                      TEXT         PRIMARY KEY,
   user_id                 VARCHAR(160) NOT NULL,
   title                   VARCHAR(256) NOT NULL DEFAULT '新对话',
+  user_renamed            BOOLEAN      NOT NULL DEFAULT false,      -- 用户手动命名后，自动标题不再覆盖
   workspace_dir           TEXT,                                    -- 本会话工作目录（沙箱范围；NULL=不限）
   project_dir             TEXT,                                    -- 仅跨端显示项目分组，不授予文件访问
   view_layout             VARCHAR(16)  NOT NULL DEFAULT 'single',   -- single / split / compare
@@ -127,6 +128,9 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
   created_at              TIMESTAMPTZ  NOT NULL DEFAULT now(),
   updated_at              TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+
+-- 已有数据库的建表语句不会重新执行列定义，需要单独补齐。
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS user_renamed BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS idx_agent_sessions_user ON agent_sessions (user_id, updated_at DESC);
 

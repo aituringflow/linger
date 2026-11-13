@@ -175,7 +175,9 @@ export function sessionFilePreview(content: string | null | undefined): { label:
 export function formatDuration(secs?: number | null, locale: "zh-CN" | "en" = "zh-CN"): string {
   const s = Number(secs);
   if (!s || s <= 0) return "";
-  const format = (value: number, unit: "minute" | "second") => new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "short" }).format(value);
+  const format = (value: number, unit: "minute" | "second") => locale === "zh-CN"
+    ? `${new Intl.NumberFormat(locale).format(value)} ${unit === "minute" ? "分" : "秒"}`
+    : new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "short" }).format(value);
   if (s < 60) return format(s, "second");
   const m = Math.floor(s / 60);
   const r = s % 60;

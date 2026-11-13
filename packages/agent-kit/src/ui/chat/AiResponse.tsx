@@ -71,7 +71,7 @@ export default function AiResponse({ scene, steps, elapsedSecs, startedAt, runni
     onBrowserAskText?.("");
   };
   return <>
-    {showProcess ? running ? <div className="msg-process-card is-running" aria-live="off"><span className="msg-process-label">{t("thinkingTime", { duration: formatDuration(shownElapsed, locale) || new Intl.NumberFormat(locale, { style: "unit", unit: "second", unitDisplay: "short" }).format(0) })}</span></div>
+    {showProcess ? running ? <div className="msg-process-card is-running" aria-live="off"><span className="msg-process-label">{t("thinkingTime", { duration: formatDuration(shownElapsed, locale) || (locale === "zh-CN" ? "0 秒" : new Intl.NumberFormat(locale, { style: "unit", unit: "second", unitDisplay: "short" }).format(0)) })}</span></div>
       : <button type="button" className={`msg-process-card${processExpanded ? " is-open" : ""}`} onClick={toggleProcess} aria-expanded={processExpanded} title={t("durationTitle")}>
         <span className="msg-process-label">{elapsedSecs ? t("completedTime", { duration: formatDuration(elapsedSecs, locale) }) : t("completed")}</span>
         <span className="msg-process-chevron" aria-hidden="true"><ChevronRightIcon /></span>

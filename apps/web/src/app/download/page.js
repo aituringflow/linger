@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 // 当前 OTA 支持的桌面平台（与 ota-server.ts 的 validPlatform 保持一致）
 const PLATFORMS = [
   { key: "win32", label: "Windows", hint: "Windows 10 / 11 · 64 位" },
-  { key: "darwin", label: "macOS", hint: "macOS 12+ · Apple 芯片 / Intel" },
+  { key: "darwin", label: "macOS", hint: "macOS 13+ · Apple 芯片" },
 ];
 
 const compareVersion = (a, b) => b.localeCompare(a, undefined, { numeric: true });

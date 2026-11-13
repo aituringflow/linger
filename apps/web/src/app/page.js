@@ -1,6 +1,7 @@
 import Link from "next/link";
 import styles from "./intro.module.css";
 import SiteHeader from "../components/site-header";
+import SiteFooter from "../components/site-footer";
 import { imageUrl, videoUrl } from "../lib/media";
 
 // 下载页要求带 ?appId= 定向通道；intro 重点介绍 launcher，所以直接落到 launcher 通道。
@@ -216,9 +217,7 @@ export default function IntroPage() {
         <p className={styles.fineprint}>当前提供 macOS 与 Windows 桌面客户端</p>
       </section>
 
-      <footer className={styles.footer}>
-        <p className={styles.copyright}>Copyright © 2026 图灵环流. All rights reserved.</p>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

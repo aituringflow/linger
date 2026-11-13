@@ -1,6 +1,7 @@
 import Link from "next/link";
 import styles from "./knowledge.module.css";
 import SiteHeader from "../../components/site-header";
+import SiteFooter from "../../components/site-footer";
 import { imageUrl, videoUrl } from "../../lib/media";
 
 // basePath 由 Next 自动加，这里不写 /linger 前缀
@@ -277,9 +278,7 @@ export default function KnowledgePage() {
         </section>
       </main>
 
-      <footer className={styles.footer}>
-        <p>© 2026 图灵环流</p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

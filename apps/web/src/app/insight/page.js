@@ -1,4 +1,5 @@
 import SiteHeader from "../../components/site-header";
+import SiteFooter from "../../components/site-footer";
 import TokenSpace from './token-space';
 import LifeJourney from './life-journey';
 import StorageModel from './storage-model';
@@ -51,7 +52,7 @@ export default function Home() { return <>
   
   
   
-  <section className="closing"><div className="shell closing-inner"><div><h2>你的 Agent，需要你的时空上下文。</h2><p>大模型有的是通用智力，缺的是属于你的时间、空间和关系。</p></div></div></section><footer className="footer shell"><p>© 2026 图灵环流</p></footer>
+  <section className="closing"><div className="shell closing-inner"><div><h2>你的 Agent，需要你的时空上下文。</h2><p>大模型有的是通用智力，缺的是属于你的时间、空间和关系。</p></div></div></section><SiteFooter />
  </main>
   <div id="boot-veil" aria-hidden="true"><span className="boot-veil-dot"/><span>灵儿 · 载入中</span></div>
   <script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />

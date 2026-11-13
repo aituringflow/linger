@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SiteHeader from "../../components/site-header";
+import SiteFooter from "../../components/site-footer";
 import styles from "./desktop.module.css";
 import { imageUrl, videoUrl } from "../../lib/media";
 
@@ -108,7 +109,7 @@ export default function DesktopPage() {
           <p className={styles.fineprint}>当前提供 macOS 与 Windows 桌面客户端</p>
         </section>
       </main>
-      <footer className={styles.footer}>© 2026 图灵环流</footer>
+      <SiteFooter />
     </div>
   );
 }

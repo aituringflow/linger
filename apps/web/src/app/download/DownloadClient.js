@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import styles from "./DownloadClient.module.css";
 
 import SiteHeader from "../../components/site-header";
+import SiteFooter from "../../components/site-footer";
 import { PLATFORM_ICONS } from "@turingflow/agent-kit/ui";
 
 function detectPlatform() {
@@ -67,7 +68,6 @@ export default function DownloadClient({ apps }) {
 
   // 多应用时显示 Tab，单应用时隐藏
   const showTabs = apps.length > 1;
-  const latestVersion = activeApp?.latestVersion || null;
 
   return (
     <div className={styles.page}>
@@ -75,9 +75,6 @@ export default function DownloadClient({ apps }) {
 
       <main>
         <section className={styles.hero}>
-          <div className={styles.badge}>
-            灵儿 · 桌面客户端{latestVersion ? ` · v${latestVersion}` : ""}
-          </div>
           <h1 className={styles.title}>灵儿，装进你的电脑。</h1>
           <p className={styles.lede}>
             灵儿是一个开源桌面个人智能体：把对话、任务、文件和知识库放进同一个工作环境。
@@ -106,9 +103,7 @@ export default function DownloadClient({ apps }) {
           </div>
         </section>
 
-        <footer className={styles.footer}>
-          <p className={styles.copyright}>Copyright © 2026 图灵环流. All rights reserved.</p>
-        </footer>
+        <SiteFooter />
       </main>
     </div>
   );

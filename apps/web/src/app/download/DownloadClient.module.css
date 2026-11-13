@@ -30,18 +30,6 @@
   padding: 96px 40px 64px;
 }
 
-.badge {
-  display: inline-block;
-  padding: 5px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--ink-soft);
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.04em;
-}
-
 .title {
   margin: 20px 0 16px;
   font-size: clamp(38px, 3.6vw, 48px);

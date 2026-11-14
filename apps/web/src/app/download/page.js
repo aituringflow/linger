@@ -5,10 +5,24 @@ import path from "node:path";
 import fs from "node:fs";
 import DownloadClient from "./DownloadClient";
 
-export const metadata = {
-  title: "下载灵儿桌面客户端",
-  description: "下载灵儿桌面客户端：开源桌面个人智能体，把对话、任务、文件和知识库放进同一个工作环境。",
-};
+// 下载页的「真正内容」依赖 ?appId=（不带参数会渲染一屏 404），所以 metadata 也要跟着参数走：
+// 不带 appId 时给 noindex（否则搜索器会把一个空白 404 页收进去，还占掉 /download 这个好路径）；
+// 带 appId 时 canonical 必须带上参数，否则 canonical 指向的就是那个 404 版。
+export async function generateMetadata({ searchParams }) {
+  const { appId } = await searchParams;
+  if (!appId) {
+    return {
+      title: "页面不存在",
+      robots: { index: false, follow: false },
+      alternates: { canonical: "/linger/download" },
+    };
+  }
+  return {
+    title: "下载灵儿桌面客户端",
+    description: "下载灵儿（Linger）：图灵环流开源的桌面个人智能体（Personal Agent），支持 macOS 与 Windows，把对话、任务、文件和知识库放进同一个工作环境。",
+    alternates: { canonical: `/linger/download?appId=${appId}` },
+  };
+}
 
 // 永远按请求时读取，保证页面反映 OTA 目录里最新的发布
 export const dynamic = "force-dynamic";

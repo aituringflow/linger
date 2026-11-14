@@ -34,7 +34,8 @@ const BOOT_SCRIPT = `(function(){var d=document,done=false;function reveal(){if(
 
 export const metadata = {
   title: "DataInsight · 智能体时代的数据底座",
-  description: "一种基于时空的统一数据组织方法，让分散的信息成为可理解、可追溯、可行动的知识。",
+  description: "图灵环流的 DataInsight：一种基于时空的统一数据组织方法，让分散的信息成为可理解、可追溯、可行动的知识，也是灵儿这类个人智能体理解上下文的基础。",
+  alternates: { canonical: "/linger/insight" },
 };
 
 export default function Home() { return <>

@@ -2,7 +2,9 @@ import Link from "next/link";
 import styles from "./intro.module.css";
 import SiteHeader from "../components/site-header";
 import SiteFooter from "../components/site-footer";
+import { SoftwareAppStructuredData } from "../components/structured-data";
 import { imageUrl, videoUrl } from "../lib/media";
+import { SEO_DESCRIPTION, SEO_TITLE } from "../lib/seo";
 
 // 下载页要求带 ?appId= 定向通道；intro 重点介绍 launcher，所以直接落到 launcher 通道。
 // 注意：web 配了 basePath=/linger，Link 会自动拼上前缀，这里不能再写 /linger。
@@ -10,10 +12,12 @@ const DOWNLOAD_HREF = "/download?appId=launcher";
 const INSIGHT_HREF = "/insight";
 
 export const metadata = {
-  title: "灵儿 · 你的数字分身",
-  description:
-    "灵儿是你的桌面数字分身：替你汇聚散落在各个应用里的信息，替你办事，替你把关。",
+  // absolute：首页标题就是全局默认标题，不再套「｜灵儿 Linger」后缀（会重复品牌词）
+  title: { absolute: SEO_TITLE },
+  description: SEO_DESCRIPTION,
+  alternates: { canonical: "/linger" },
 };
+
 
 const CAPABILITIES = [
   {
@@ -81,9 +85,9 @@ export default function IntroPage() {
 
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <h1 className={styles.title}>灵儿：你的数字分身</h1>
+          <h1 className={styles.title}>灵儿：你的桌面个人智能体</h1>
           <p className={styles.lede}>
-            灵儿是你的桌面分身：散落在各个应用里的消息、订单、账单和文件，它替你收拢、跟进，能自动完成的直接做完。操作方式也不同——没有层层菜单，也不用记快捷键：你说一句要做什么，它直接接手，只在需要你拍板时才开口问。
+            灵儿（Linger）是图灵环流开源的桌面 AI 智能体，也是你的数字分身：散落在各个应用里的消息、订单、账单和文件，它替你收拢、跟进，能自动完成的直接做完。操作方式也不同——没有层层菜单，也不用记快捷键：你说一句要做什么，它直接接手，只在需要你拍板时才开口问。
           </p>
           <div className={styles.actions}>
             <Link href={DOWNLOAD_HREF} className={styles.primary}>
@@ -202,6 +206,40 @@ export default function IntroPage() {
         </div>
       </section>
 
+      {/* ── 定义段：这一屏是给搜索看的，不是给演示看的 ──
+          概念词（个人智能体 / Personal Agent / AI Agent / 数字分身）在这里各有一段实体化的解释，
+          让「灵儿 = 图灵环流出品的桌面个人智能体」变成一个可被检索的陈述，而不是散落的营销句。 */}
+      <section className={styles.section} id="what-is-linger">
+        <div className={styles.sectionHead}>
+          <div className={styles.sectionHeadMain}>
+            <h2 className={styles.h2}>灵儿是什么？</h2>
+            <p className={styles.sectionLede}>
+              灵儿（Linger）是图灵环流（TuringFlow）出品的开源桌面个人智能体（Personal Agent）：它住在你的电脑上，替你收拢散落在各个应用里的信息，把事办完，只在关键处找你确认。
+            </p>
+          </div>
+        </div>
+        <div className={styles.prose}>
+          <div>
+            <h3>不是一个对话框，而是一个会动手的 Agent</h3>
+            <p>
+              常见的 AI 助手停在一问一答：给你答案，剩下的事还得自己做。灵儿属于能动手的那一类——它读你电脑上的文件，把微信、订单、账单里的信息收拢到一处，再替你订座、设提醒、整理纪要。什么时候该动手由它判断，只在需要你拍板时才停下来问。
+            </p>
+          </div>
+          <div>
+            <h3>「个人智能体」和「AI 助手」差在哪</h3>
+            <p>
+              AI 助手是一个更聪明的输入框，企业级 Agent 平台面向流程与团队；个人智能体只面向一个人：它记得你在办什么、上次做到哪一步，能跨应用接着做。灵儿的「数域」就是这条边界，换一个数域就换一套上下文，工作与生活不会串味。
+            </p>
+          </div>
+          <div>
+            <h3>开源，可自部署，模型自己选</h3>
+            <p>
+              灵儿的代码在 GitHub 开源（aituringflow/linger）：用官方客户端，也可以自己部署后端、接自己的模型密钥。知识库的索引建在你自己的电脑上，照片、视频和声音不必为了被搜索先传上云。
+            </p>
+          </div>
+        </div>
+      </section>
+
       <section className={styles.closing}>
         <h2 className={styles.closingTitle}>把第一个任务，交给它。</h2>
         <div className={styles.actions}>
@@ -218,6 +256,7 @@ export default function IntroPage() {
       </section>
 
       <SiteFooter />
+      <SoftwareAppStructuredData />
     </main>
   );
 }

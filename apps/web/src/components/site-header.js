@@ -18,7 +18,7 @@ export default function SiteHeader({ active, showCta = true }) {
       <div className={styles.inner}>
         <Link href="/" className={styles.brand} aria-label="首页">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/linger/turingflow_logo.png" alt="图灵环流" width={124} height={39} />
+          <img src="/linger/turingflow_logo.png" alt="图灵环流 TuringFlow" width={124} height={39} />
           <span className={styles.tag}>灵儿</span>
         </Link>
         <nav className={styles.nav} aria-label="页面导航">

@@ -11,7 +11,8 @@ const INSIGHT_HREF = "/insight";
 export const metadata = {
   title: "知识库 · 说一句话，找回你的照片和片段",
   description:
-    "不用整理文件夹，不用改文件名。照片按你说的画面找回，视频直接定位到那几秒，声音也能当线索。全部在你的电脑上完成。",
+    "灵儿的本地知识库：不用整理文件夹，不用改文件名。照片按你说的画面找回，视频直接定位到那几秒，声音也能当线索。索引建在你自己的电脑上。",
+  alternates: { canonical: "/linger/knowledge" },
 };
 
 const KINDS = [

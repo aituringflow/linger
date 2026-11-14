@@ -6,7 +6,8 @@ import { imageUrl, videoUrl } from "../../lib/media";
 
 export const metadata = {
   title: "桌面 · 把要做的事摆在桌面上",
-  description: "灵儿把正在跑的任务、要翻的文件和每天用的入口摆在桌面上，位置和大小自己定。",
+  description: "灵儿这个桌面个人智能体把正在跑的任务、要翻的文件和每天用的入口摆到桌面上，位置和大小自己定，做完再收起。",
+  alternates: { canonical: "/linger/desktop" },
 };
 
 const DOWNLOAD_HREF = "/download?appId=launcher";
@@ -50,7 +51,8 @@ export default function DesktopPage() {
       <SiteHeader active="desktop" />
       <main>
         <section className={styles.hero}>
-          <p className={styles.title}>桌面，先替你摆好。</p>
+          {/* 首屏标题从 <p> 改成 <h1>：原来整页没有一级标题，抓取器只能拿导航文字当主题 */}
+          <h1 className={styles.title}>桌面，先替你摆好。</h1>
           <p className={styles.lede}>
             正在跑的任务、常翻的文件、每天用的入口，都能摆在桌面上。位置和大小自己定，做完再收起——桌面不只是壁纸。
           </p>

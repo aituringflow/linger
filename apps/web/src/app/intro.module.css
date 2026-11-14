@@ -752,3 +752,37 @@
     justify-content: center;
   }
 }
+
+/* ── 「灵儿是什么」定义段 ────────────────────────────────────
+   三栏概念解释：给搜索引擎一段实体化的定义文本，视觉上仍是一屏安静的说明。 */
+.prose {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+  margin-top: 56px;
+}
+
+.prose h3 {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: #171715;
+}
+
+.prose p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 2;
+  letter-spacing: 0.005em;
+  color: #6b6b63;
+}
+
+@media (max-width: 900px) {
+  .prose {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 34px;
+    margin-top: 40px;
+  }
+}

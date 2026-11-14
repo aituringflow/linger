@@ -5,7 +5,8 @@ import styles from "./collaboration.module.css";
 
 export const metadata = {
   title: "协同 · 人与 AI，一起把事情推进",
-  description: "和灵儿在群聊中协作，或通过伴聊私下商量。",
+  description: "和灵儿这个 AI 智能体在群聊中协作，或通过伴聊私下商量：它读群里的上下文、出初稿、按反馈迭代，人只负责判断。",
+  alternates: { canonical: "/linger/collaboration" },
 };
 
 export default function CollaborationPage() {

@@ -9,8 +9,8 @@ export default function manifest() {
     background_color: "#202020",
     theme_color: "#202020",
     icons: [
-      { src: "/linger/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/linger/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/linger/icons/linger-mark-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/linger/icons/linger-mark-512.png", sizes: "512x512", type: "image/png" },
     ],
   };
 }

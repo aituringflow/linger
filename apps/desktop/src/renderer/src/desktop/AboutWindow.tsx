@@ -10,10 +10,11 @@ import turingflowLogo from "../assets/turingflow_logo.png";
 const DIALOG_HEIGHT = 236;
 
 /**
- * 展示用的应用名：`app.getName()` 取的是 package.json 的 name（"desktop"），
- * 不适合给用户看，这里写死产品名；版本仍走主进程。
+ * 展示用的应用名由主进程按系统语言给出（中文系统「灵儿」/ 其它 Linger），
+ * 见 apps/desktop/src/main/app-display-name.ts；`app.getName()` 取的是
+ * package.json 的 name（"desktop"），不适合给用户看。版本同样走主进程。
  */
-const APP_DISPLAY_NAME = "Linger";
+const APP_DISPLAY_NAME_FALLBACK = "Linger";
 
 type AppInfo = Awaited<ReturnType<typeof window.launcher.getAppInfo>>;
 
@@ -82,7 +83,7 @@ export default function AboutWindow() {
       >
         <div className="launcher-about-body">
           <div className="launcher-about-head">
-            <strong className="launcher-about-appname">{APP_DISPLAY_NAME}</strong>
+            <strong className="launcher-about-appname">{info?.displayName ?? APP_DISPLAY_NAME_FALLBACK}</strong>
             <div className="launcher-about-appicon is-spinning">
               <AppIcon kind="primary" size={56} skin={launcher.appearance === "light" || launcher.appearance === "dark" ? launcher.appearance : skinId} />
             </div>

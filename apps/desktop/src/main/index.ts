@@ -21,6 +21,7 @@ import { listComputeProviders, loginComputeProvider, logoutComputeProvider, inva
 import { bootstrapCodexRuntime, codexRuntimeState, installCodexRuntime, onCodexRuntimeState } from "./codex-runtime.js";
 import { bootstrapLibreOfficeRuntime, installLibreOfficeRuntime, isLibreOfficeRuntimeInstalled, scheduleLibreOfficeRuntime } from "./libreoffice-runtime.js";
 import { saveDshKey, deleteDshKey, readDshKey } from "./dsh-credentials.js";
+import { appDisplayName } from "./app-display-name.js";
 import { createDirectory, homeDir, listDirectory, movePath, renamePath, resolveInHome, trashTarget, watchDirectory } from "./home-files.js";
 import { createLauncherUpdater } from "./updater.js";
 import { APP_BUNDLE_ID } from "../shared/app-identity.js";
@@ -277,7 +278,7 @@ if (wechatViewerChild) {
       y,
       show: false,
       backgroundColor: "#101014",
-      title: "Linger",
+      title: appDisplayName(),
       // 让网页内容延伸到 macOS 标题栏区域，自绘状态栏在原生全屏 Space 中仍可贴顶。
       ...(isMac ? { titleBarStyle: "hidden" as const } : {}),
       // Windows：构造时直接给定圆盘图标，避免窗口创建到 applyAppIcon() 之间先显示 Electron 默认图标；
@@ -298,7 +299,10 @@ if (wechatViewerChild) {
     mainWindow.once("ready-to-show", () => {
       mainWindow?.show();
     });
-
+    // 渲染层的 index.html 里写的是 <title>Linger</title>，文档加载完会把窗口标题盖回去。
+    // 标题只由主进程决定（中文系统「灵儿」/ 其它 Linger，见 app-display-name.ts），
+    // 这里挡掉页面更新，否则任务栏悬浮与 Alt-Tab 会显示英文名。
+    mainWindow.on("page-title-updated", (event) => { event.preventDefault(); });
     // macOS 全屏 Space 的经典坑：Electron 进入原生全屏后窗口 bounds 仍停在 workArea
     // （从菜单栏下方开始），顶部 30px 菜单栏区域不被内容覆盖，显示成黑条。
     // 进入全屏时把窗口强制铺满整个 display（y=0 起、含菜单栏高度），
@@ -444,6 +448,8 @@ if (wechatViewerChild) {
     // 「关于」窗口：只暴露静态的应用/运行时版本信息，不含任何可执行内容。
     ipcMain.handle("launcher:app-info", () => ({
       name: app.getName(),
+      // 「关于」窗口展示用：中文系统「灵儿」/ 其它 Linger（见 app-display-name.ts）。
+      displayName: appDisplayName(),
       version: app.getVersion(),
       electron: process.versions.electron ?? "",
       chrome: process.versions.chrome ?? "",

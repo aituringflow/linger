@@ -328,7 +328,7 @@ export interface LauncherApi {
   /** 订阅「用户点了通知」：回传来源窗口与会话，宿主负责打开窗口并切会话；返回取消订阅函数。 */
   onNotificationOpen(listener: (payload: LauncherNotificationOpen) => void): () => void;
   /** 「关于」窗口的应用与运行时信息（版本号等；纯静态数据）。 */
-  getAppInfo(): Promise<{ name: string; version: string; electron: string; chrome: string; node: string; platform: string }>;
+  getAppInfo(): Promise<{ name: string; displayName: string; version: string; electron: string; chrome: string; node: string; platform: string }>;
   /** 状态栏的初始系统状态（电量 / Wi-Fi / 输入法）。 */
   getSystemStatus(): Promise<LauncherSystemStatus>;
   /** 订阅状态栏的系统状态变化；返回取消订阅函数。 */

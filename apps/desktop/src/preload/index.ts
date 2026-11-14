@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { LauncherApi, LauncherComputeProvider, LauncherDesktopSession, LauncherFsEntry, LauncherLocalRef, LauncherNotificationOpen, LauncherState, LauncherSystemStatus } from "../shared/types";
+import type { CodexRuntimeState, LauncherApi, LauncherComputeProvider, LauncherDesktopSession, LauncherFsEntry, LauncherLocalRef, LauncherNotificationOpen, LauncherState, LauncherSystemStatus } from "../shared/types";
 
 /**
  * 通知点击可能在 React 还没挂上监听时就到达（刚启动就点通知）：
@@ -118,6 +118,18 @@ const api: LauncherApi = {
   logoutComputeProvider: (id) => ipcRenderer.invoke("launcher:compute-logout", id) as ReturnType<LauncherApi["logoutComputeProvider"]>,
   saveDshKey: (key) => ipcRenderer.invoke("launcher:dsh-save-key", key),
   deleteDshKey: () => ipcRenderer.invoke("launcher:dsh-delete-key"),
+  // Codex CLI 平台包不打进安装包：首次启用时按需下载（压缩包约 157MB / 解开 437MB）。
+  getCodexRuntime: () => ipcRenderer.invoke("launcher:codex-runtime") as Promise<CodexRuntimeState>,
+  installCodexRuntime: () => ipcRenderer.invoke("launcher:codex-runtime-install") as ReturnType<LauncherApi["installCodexRuntime"]>,
+  onCodexRuntimeState: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, next: CodexRuntimeState) => listener(next);
+    ipcRenderer.on("launcher:codex-runtime-state", handler);
+    return () => { ipcRenderer.removeListener("launcher:codex-runtime-state", handler); };
+  },
+  // office→PDF 预览引擎（LibreOfficeKit）同样不打进安装包：解开约 184MB，
+  // 启动后空闲时静默补齐，也可以从这里立刻触发。
+  getLibreOfficeRuntime: () => ipcRenderer.invoke("launcher:libreoffice-runtime") as Promise<{ installed: boolean }>,
+  installLibreOfficeRuntime: () => ipcRenderer.invoke("launcher:libreoffice-runtime-install") as ReturnType<LauncherApi["installLibreOfficeRuntime"]>,
   onComputeProvidersChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, provider?: "workbuddy" | "codex" | "dsh") => listener(provider);
     ipcRenderer.on("launcher:compute-providers-changed", handler);

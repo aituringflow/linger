@@ -97,8 +97,19 @@ dev 入口会先尝试编译两个可选的原生助手——macOS 状态栏采�
 
 ```bash
 npm run build -w desktop          # 构建原生助手及 Electron 应用
-npm run dist -w desktop           # 经 scripts/build-launcher.mjs 调 electron-builder
+npm run dist -w desktop           # 经 scripts/build-launcher.mjs 调 electron-builder，出免安装版
+npm run dist -w desktop -- setup           # 出安装包（Windows=NSIS / macOS=DMG）
+npm run dist -w desktop -- setup --reuse   # 复用上一步的免安装版，只做压缩
 ```
+
+`setup` 不再打包两遍：它先出目录产物（`win-unpacked` / `Linger.app`），再用
+`--prepackaged` 让 electron-builder 只压缩不打包。先跑一次免安装版（`npm run dist -w desktop`）
+再执行 `setup --reuse`，可以跳过那次 1.8GB 的拷贝，只等压缩。
+
+Codex CLI 的平台包（解开约 437MB）**不打进安装包**：安装包省下这 437MB，用户首次在
+「设置 → 算力 → Codex」里启用时，客户端从 npm 镜像下载官方 tgz（约 157MB）解压到
+`<userData>/runtime/codex/<version>/`，再通过 `CODEX_CLI_PATH` 交给 agent-kit。
+需要离线分发时，删掉 `electron-builder.yml` 里 `@openai` 那三条平台包排除即可把它打回去。
 
 ### 只做 SDK
 

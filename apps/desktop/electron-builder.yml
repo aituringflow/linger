@@ -20,32 +20,77 @@ directories:
   buildResources: build
 
 # Pack only Electron main/preload/renderer code; .env stays editable outside the package.
+#
+# 体积/耗时大头是「文件数」而不是字节数：node_modules 里有 1.5 万个 .d.ts/.d.cts/
+# .d.mts（纯类型声明）和 1700 多个 README/CHANGELOG。它们运行期一律不会被读，但每个
+# 文件都要 stat + read + write，Windows 上还要被 Defender 实时扫描一遍，所以全部剔除。
+# 注意：只删 README/CHANGELOG，不要删其它 *.md —— DSH 的 skills/**/SKILL.md 是运行期
+# 内容（技能提示词）。
 files:
   - out/**
   - prototypes/wechat-window-cua/**
   - package.json
   - "!**/.env"
   - "!**/*.map"
+  - "!**/*.d.ts"
+  - "!**/*.d.mts"
+  - "!**/*.d.cts"
+  - "!**/[Rr][Ee][Aa][Dd][Mm][Ee]*.md"
+  - "!**/[Cc][Hh][Aa][Nn][Gg][Ee][Ll][Oo][Gg]*"
+  # @deepseek-ai 各包同时发布了 src/**/*.ts（16,333 个文件 / 8MB）。运行期一律走
+  # lib/**/*.js，源码只对 sourcemap 和阅读有用；而打包耗时几乎全在「文件数」上——
+  # 每个文件都要 stat+read+write，Windows 上还被 Defender 实时扫一遍。整片剔除。
+  - "!**/src/**/*.ts"
+  - "!**/src/**/*.tsx"
   - "!**/logs/**"
   - "!**/release/**"
   - "!**/native/**"
   - "!**/node_modules/onnxruntime-node/bin/**"
+  # onnxruntime-web 自带 4 套 wasm 后端（jsep 28MB / asyncify 27MB / jspi 17MB /
+  # 纯 simd 14MB，合计 85MB）。launcher 主进程走 onnxruntime-node（原生绑定），
+  # transformers 又把 web 端的 JS 内联进了自己的 dist；反查 dist/transformers.node.mjs
+  # 只出现 `ort-wasm-simd-threaded.asyncify.wasm`，所以保留 asyncify 一套，其余逐个剔除
+  # （用具体文件名而不用通配，避免哪天 transformers 换后端时被静默删掉）。
+  - "!**/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm"
+  - "!**/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm"
+  - "!**/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jspi.wasm"
+  # LibreOfficeKit 平台包（win32-x64 解开 184MB / 735 个文件）**不再内置**：它是 dsh
+  # 的 office→PDF 预览能力（dsh-skill-office / dsh-office-to-pdf）的引擎，首次需要时
+  # 由主进程下到 userData/runtime/libreoffice/<version>-<target>，再通过 NODE_PATH
+  # 注入给 dsh 子进程（见 src/main/libreoffice-runtime.ts）。
+  - "!**/node_modules/@deepseek-ai/libreoffice-kit-*/**"
   # 平台包由 extraResources 单独复制，避免依赖收集再次放入 asar.unpacked。
   - "!**/node_modules/@openai/codex-*/**"
   # DSH plugins declare many runtime peer dependencies, which electron-builder's
   # npm dependency walker does not collect from a workspace package.
+  # from/to 是独立的 Fileset，顶层 files 的排除规则不会作用到这里，必须重复一遍。
   - from: ../../node_modules/@deepseek-ai
     to: node_modules/@deepseek-ai
     filter:
       - "**/*"
+      - "!**/*.d.ts"
+      - "!**/*.d.mts"
+      - "!**/*.d.cts"
+      - "!**/[Rr][Ee][Aa][Dd][Mm][Ee]*.md"
+      - "!**/[Cc][Hh][Aa][Nn][Gg][Ee][Ll][Oo][Gg]*"
+      # 同上：源码不进包；LibreOfficeKit 平台包改为按需下载。
+      - "!**/src/**/*.ts"
+      - "!**/src/**/*.tsx"
+      - "!libreoffice-kit-*/**"
 
 # 原生二进制与图标：打包后位于 process.resourcesPath 根目录
 extraResources:
-  # Codex SDK 的平台可执行文件必须位于 asar 外，供子进程直接启动。
+  # Codex CLI 的平台包（单平台 437MB，其中 codex.exe 319MB）**不再内置**：
+  # 首次启用时由主进程从 npm 镜像下载到 userData/runtime/codex/<version>，再注入
+  # CODEX_CLI_PATH（见 src/main/codex-runtime.ts）。安装包因此少 437MB，NSIS 也少压 437MB。
+  # 需要离线/内网分发时，把下面三条排除删掉即可把当前平台的包打回去（仅作应急）。
   - from: ../../node_modules/@openai
     to: node_modules/@openai
     filter:
       - "codex-*/**/*"
+      - "!codex-win32-*/**"
+      - "!codex-darwin-*/**"
+      - "!codex-linux-*/**"
   # Client configuration is bundled as-is and must contain no secrets.
   - from: .env
     to: .env
@@ -69,6 +114,13 @@ extraResources:
 
 win:
   icon: resources/app-icon/agentos-launcher-dark.ico
+  # 平台级 files 与顶层 files 合并生效。SDK 的 vendor/ripgrep 里同时装了 5 个平台的
+  # 二进制（合计 56MB），只留当前平台，其余 4 个目录（约 44MB）全部剔除。
+  files:
+    - "!**/vendor/ripgrep/arm64-darwin/**"
+    - "!**/vendor/ripgrep/x64-darwin/**"
+    - "!**/vendor/ripgrep/x64-linux/**"
+    - "!**/vendor/ripgrep/arm64-linux/**"
   target:
     - target: nsis
       arch:
@@ -76,6 +128,11 @@ win:
 
 mac:
   icon: resources/app-icon/agentos-launcher-dark.icns
+  files:
+    - "!**/vendor/ripgrep/x64-win32/**"
+    - "!**/vendor/ripgrep/x64-linux/**"
+    - "!**/vendor/ripgrep/arm64-linux/**"
+    - "!**/vendor/ripgrep/x64-darwin/**"
   category: public.app-category.utilities
   # 中文系统下 Finder / Dock / 菜单栏显示「灵儿」，英文系统仍为 Linger。
   # macOS 只认 .app 包内的 lproj 本地化，Electron 本身没有应用名多语言能力。

@@ -1,6 +1,7 @@
 import { getCodexCliPath, getWorkBuddyAuthStatus, loginWorkBuddy, logoutWorkBuddy } from "@turingflow/agent-kit";
 import { readDshKey } from "./dsh-credentials.js";
 import { verifyDshKey } from "./dsh-auth.js";
+import { codexRuntimeState } from "./codex-runtime.js";
 import { spawn } from "node:child_process";
 import type { ComputeProviderId, LauncherComputeProvider } from "../shared/types";
 
@@ -36,6 +37,18 @@ function runCodex(args: string[], timeoutMs = 10_000): Promise<{ code: number; o
 }
 
 async function codexStatus(): Promise<LauncherComputeProvider> {
+  // 平台包不打进安装包（437MB）：没下载就谈不上登录态，直接告诉面板去下载。
+  const runtime = codexRuntimeState();
+  if (!runtime.installed) {
+    return {
+      id: "codex",
+      name: "Codex",
+      available: false,
+      authenticated: false,
+      error: runtime.error
+        ?? (runtime.downloading ? "Codex 组件正在下载，完成后会自动可用" : "Codex 组件未下载，点击图标下载（约 160 MB）"),
+    };
+  }
   try {
     const result = await runCodex(["login", "status"]);
     return { id: "codex", name: "Codex", available: true, authenticated: result.code === 0,

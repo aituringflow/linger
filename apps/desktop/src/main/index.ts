@@ -18,6 +18,8 @@ import { LocalReferenceStore } from "./local-references.js";
 import { currentSystemStatus, startSystemStatusWatch } from "./system-status.js";
 import { releaseKeepAwake, setKeepAwake } from "./keep-awake.js";
 import { listComputeProviders, loginComputeProvider, logoutComputeProvider, invalidateComputeProviders } from "./compute-providers.js";
+import { bootstrapCodexRuntime, codexRuntimeState, installCodexRuntime, onCodexRuntimeState } from "./codex-runtime.js";
+import { bootstrapLibreOfficeRuntime, installLibreOfficeRuntime, isLibreOfficeRuntimeInstalled, scheduleLibreOfficeRuntime } from "./libreoffice-runtime.js";
 import { saveDshKey, deleteDshKey, readDshKey } from "./dsh-credentials.js";
 import { createDirectory, homeDir, listDirectory, movePath, renamePath, resolveInHome, trashTarget, watchDirectory } from "./home-files.js";
 import { createLauncherUpdater } from "./updater.js";
@@ -753,6 +755,35 @@ if (wechatViewerChild) {
       try { deleteDshKey(); removeLegacyDshKey(); invalidateComputeProviders(); notifyComputeProvidersChanged("dsh"); return { ok: true }; }
       catch { return { ok: false, error: "删除失败" }; }
     });
+    // Codex CLI 平台包（单平台 437MB）不打进安装包：状态查询 + 显式下载。
+    ipcMain.handle("launcher:codex-runtime", (event) => {
+      if (!trustedSender(event.sender.getURL())) return { ...codexRuntimeState(), installed: false };
+      return codexRuntimeState();
+    });
+    ipcMain.handle("launcher:codex-runtime-install", async (event) => {
+      if (!trustedSender(event.sender.getURL())) return { ok: false, error: "无权操作" };
+      const result = await installCodexRuntime();
+      // 装好之后 Codex 才可能登录/列模型：丢掉探测缓存并广播，面板会自己重查。
+      invalidateComputeProviders();
+      notifyComputeProvidersChanged("codex");
+      return result;
+    });
+    onCodexRuntimeState((next) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.webContents.send("launcher:codex-runtime-state", next);
+      }
+    });
+    // office→PDF 预览引擎（LibreOfficeKit，单平台 184MB）同样不打进安装包：
+    // 启动时只做检测 + 注入 NODE_PATH，缺失时由 scheduleLibreOfficeRuntime() 在窗口
+    // 空闲后静默补齐；这里留一个显式入口，UI 需要时可以立刻触发（见 libreoffice-runtime.ts）。
+    ipcMain.handle("launcher:libreoffice-runtime", (event) => {
+      if (!trustedSender(event.sender.getURL())) return { installed: false };
+      return { installed: isLibreOfficeRuntimeInstalled() };
+    });
+    ipcMain.handle("launcher:libreoffice-runtime-install", async (event) => {
+      if (!trustedSender(event.sender.getURL())) return { ok: false, error: "无权操作" };
+      return installLibreOfficeRuntime();
+    });
     ipcMain.handle("launcher:compute-login", async (event, provider: unknown) => {
       if (!trustedSender(event.sender.getURL())) return { ok: false, error: "无权操作" };
       if (provider !== "workbuddy" && provider !== "codex") return { ok: false, error: "未知的算力提供商" };
@@ -1412,6 +1443,13 @@ if (wechatViewerChild) {
   }
 
   app.whenReady().then(async () => {
+    // Codex CLI：优先用已下载的那份，其次复用本机同版本安装；都没有就什么都不做
+    // —— 绝不在启动阶段替用户拉 157MB（见 codex-runtime.ts）。
+    await bootstrapCodexRuntime();
+    // office→PDF 预览引擎：已装则注入 NODE_PATH（dsh 子进程靠它找到引擎包），
+    // 没装则等窗口空闲后再静默补齐（见 libreoffice-runtime.ts 里的取舍说明）。
+    bootstrapLibreOfficeRuntime();
+    if (process.env.LINGER_SKIP_LIBREOFFICE_AUTOFETCH !== "1") scheduleLibreOfficeRuntime();
     /**
      * 实时语音转写（腾讯云 ASR）由渲染进程**直连** wss://asr.cloud.tencent.com。
      *

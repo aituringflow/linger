@@ -97,8 +97,20 @@ Packaging:
 
 ```bash
 npm run build -w desktop          # builds native helpers and the Electron app
-npm run dist -w desktop           # electron-builder via scripts/build-launcher.mjs
+npm run dist -w desktop           # electron-builder via scripts/build-launcher.mjs (portable build)
+npm run dist -w desktop -- setup           # installer (NSIS on Windows, DMG on macOS)
+npm run dist -w desktop -- setup --reuse   # reuse the portable build, compress only
 ```
+
+`setup` no longer packages twice: it produces the app directory (`win-unpacked` / `Linger.app`)
+first, then lets electron-builder compress it via `--prepackaged`. Running the portable build
+once and then `setup --reuse` skips the 1.8GB copy and goes straight to compression.
+
+The Codex CLI platform package (437MB unpacked) is **not bundled**: the installer is 437MB
+smaller, and the client downloads the official tgz (~157MB) from the npm mirror the first time
+the user enables Codex under Settings → Compute → Codex, unpacks it into
+`<userData>/runtime/codex/<version>/` and points `CODEX_CLI_PATH` at it. For offline
+distribution, drop the three `@openai` platform exclusions in `electron-builder.yml`.
 
 ### SDK on its own
 

@@ -26,7 +26,10 @@ export function createDshStream({ messages, signal, config }: AgentRequest): Rea
         const last = [...messages].reverse().find((message) => message.role === "user");
         if (!last?.content.trim()) throw new Error("缺少用户消息");
         if (!config.env?.DEEPSEEK_API_KEY) throw new Error("请先配置 DeepSeek API Key");
-        const inherited = ["PATH", "HOME", "USER", "TMPDIR", "TMP", "TEMP", "LANG", "SYSTEMROOT", "WINDIR", "APPDATA", "LOCALAPPDATA"];
+        // NODE_PATH：launcher 把「按需下载」的 LibreOfficeKit 引擎目录挂在这里
+        // （apps/desktop/src/main/libreoffice-runtime.ts）。dsh 的 office→PDF 预览用
+        // createRequire().resolve() 找引擎包，只有 CJS 解析链会看 NODE_PATH。
+        const inherited = ["PATH", "HOME", "USER", "TMPDIR", "TMP", "TEMP", "LANG", "SYSTEMROOT", "WINDIR", "APPDATA", "LOCALAPPDATA", "NODE_PATH"];
         const env: NodeJS.ProcessEnv = Object.fromEntries(inherited.flatMap((key) => process.env[key] === undefined ? [] : [[key, process.env[key]]]));
         env.DEEPSEEK_API_KEY = config.env.DEEPSEEK_API_KEY;
         if (config.env.DSH_HOME) env.DSH_HOME = config.env.DSH_HOME;

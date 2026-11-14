@@ -1,7 +1,7 @@
 import { useTranslation } from "../i18n";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
-import type { ComputeProviderId, LauncherComputeProvider } from "../../../shared/types";
+import type { CodexRuntimeState, ComputeProviderId, LauncherComputeProvider } from "../../../shared/types";
 import { COMPUTE_PROVIDER_IDS, enabledComputeProviders, reloadLauncherModels, useLauncher } from "../state";
 
 /**
@@ -126,6 +126,32 @@ export default function ComputeProviderSettings() {
     return () => { aliveRef.current = false; };
   }, []);
 
+  // Codex CLI 的平台包（437MB）不打进安装包：挂载时读一次状态，之后跟着下载进度更新。
+  const [codexRuntime, setCodexRuntime] = useState<CodexRuntimeState | null>(null);
+  useEffect(() => {
+    void window.launcher.getCodexRuntime()
+      .then((next) => { if (aliveRef.current) setCodexRuntime(next); })
+      .catch(() => { /* 读不到就按「未知」渲染，不影响其它提供商 */ });
+    return window.launcher.onCodexRuntimeState((next) => { if (aliveRef.current) setCodexRuntime(next); });
+  }, []);
+
+  async function downloadCodex() {
+    if (pending) return;
+    setPending("codex");
+    setError(null);
+    try {
+      const result = await window.launcher.installCodexRuntime();
+      if (!aliveRef.current) return;
+      if (!result.ok) { setError(result.error || t("compute.downloadFailed")); return; }
+      await load(true);
+      await syncModels();
+    } catch {
+      if (aliveRef.current) setError(t("compute.downloadFailed"));
+    } finally {
+      if (aliveRef.current) setPending(null);
+    }
+  }
+
   const load = useCallback(async (force = false) => {
     try {
       const list = await window.launcher.getComputeProviders(force);
@@ -217,6 +243,11 @@ export default function ComputeProviderSettings() {
           const busy = pending === id;
           const offline = !authenticated;
           const onlyEnabled = isEnabled && enabled.length <= 1;
+          // Codex 平台包按需下载（437MB）：未安装时代替「点击登录」显示下载入口与进度。
+          const runtimeMissing = id === "codex" && codexRuntime !== null && !codexRuntime.installed;
+          const runtimePercent = codexRuntime && codexRuntime.total > 0
+            ? Math.min(100, Math.round((codexRuntime.downloaded / codexRuntime.total) * 100))
+            : 0;
           const Mark = meta.mark;
           return (
             <div
@@ -231,7 +262,21 @@ export default function ComputeProviderSettings() {
                 {checking ? (
                   <span className="compute-provider-overlay is-busy">{t("compute.checking")}</span>
                 ) : null}
-                {!checking && available && !authenticated ? (
+                {!checking && runtimeMissing ? (
+                  <button
+                    type="button"
+                    className="compute-provider-overlay"
+                    onClick={() => void downloadCodex()}
+                    disabled={busy || codexRuntime?.downloading}
+                    aria-label={t("compute.download")}
+                    title={codexRuntime?.error || t("compute.missingRuntime")}
+                  >
+                    {codexRuntime?.downloading
+                      ? t("compute.downloading", { percent: runtimePercent })
+                      : t("compute.download")}
+                  </button>
+                ) : null}
+                {!checking && !runtimeMissing && available && !authenticated ? (
                   <button
                     type="button"
                     className="compute-provider-overlay"
@@ -281,7 +326,13 @@ export default function ComputeProviderSettings() {
                   </button>
                 </div>
               ) : null}
-              {!available ? <span className="compute-provider-hint">{t("compute.unavailable")}</span> : null}
+              {!available
+                ? <span className="compute-provider-hint">{runtimeMissing ? t("compute.missingRuntime") : t("compute.unavailable")}</span>
+                : null}
+              {/* 复用本机已装的同版本 codex：明确告知没走下载，避免用户以为装了两份。 */}
+              {id === "codex" && codexRuntime?.source === "local"
+                ? <span className="compute-provider-hint">{t("compute.localRuntime", { version: codexRuntime.version })}</span>
+                : null}
               {id === "dsh" && configured && !authenticated && live?.error ? <span className="compute-provider-error" role="status">{live.error}</span> : null}
             </div>
           );

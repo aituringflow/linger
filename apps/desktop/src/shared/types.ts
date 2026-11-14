@@ -69,6 +69,26 @@ export interface LauncherComputeProvider {
   error?: string;
 }
 
+/**
+ * Codex CLI 的平台包（解开约 437MB）不打进安装包，首次启用时按需下载（压缩包约 157MB）。
+ * 设置面板据此显示「下载组件」/ 进度条。
+ */
+export interface CodexRuntimeState {
+  /** 平台包是否已就绪（已下载并解压，或复用了本机同版本的 codex）。 */
+  installed: boolean;
+  /** 就绪来源：download=我们下载到 userData 的那份；local=复用本机已装的同版本。 */
+  source?: "download" | "local";
+  /** 与构建机 node_modules 里 @openai/codex 一致的版本。 */
+  version: string;
+  downloading: boolean;
+  /** 已下载字节数。 */
+  downloaded: number;
+  /** 总字节数；服务端没给 content-length 时为 0。 */
+  total: number;
+  /** 最近一次失败原因。 */
+  error?: string;
+}
+
 
 export interface DesktopWidgetPlacement {
   columns: number;
@@ -356,6 +376,16 @@ export interface LauncherApi {
   onComputeProvidersChanged(listener: (provider?: ComputeProviderId) => void): () => void;
   saveDshKey(key: string): Promise<{ ok: boolean; error?: string }>;
   deleteDshKey(): Promise<{ ok: boolean; error?: string }>;
+  /** Codex CLI 平台包的安装状态（不打进安装包，首次使用按需下载）。 */
+  getCodexRuntime(): Promise<CodexRuntimeState>;
+  /** 下载并安装 Codex CLI 平台包（压缩包约 157MB）；已装好时直接返回成功。 */
+  installCodexRuntime(): Promise<{ ok: boolean; error?: string }>;
+  /** 订阅下载进度，返回取消订阅函数。 */
+  onCodexRuntimeState(listener: (state: CodexRuntimeState) => void): () => void;
+  /** office→PDF 预览引擎（LibreOfficeKit，解开约 184MB）是否就绪；不打进安装包。 */
+  getLibreOfficeRuntime(): Promise<{ installed: boolean }>;
+  /** 立刻下载并安装 office 预览引擎；已装好时直接返回成功。 */
+  installLibreOfficeRuntime(): Promise<{ ok: boolean; error?: string }>;
   /** OTA 更新：当前状态（当前版本、可用新版本、下载进度）。 */
   updater: {
     status(): Promise<{ version: string; release: { version: string; filename: string; size: number } | null; download: { phase: string; downloaded: number; total: number; error?: string } }>;

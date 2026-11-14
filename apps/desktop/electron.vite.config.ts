@@ -107,11 +107,45 @@ function kitSourceUrlPlugin(): Plugin {
   };
 }
 
+/**
+ * Codex CLI 现在不打进安装包，首次使用时按需下载（见 src/main/codex-runtime.ts）。
+ * 下载地址要带版本号，而版本号只能来自构建机的 node_modules，所以在构建期注入成常量。
+ */
+function codexCliVersion(): string {
+  const pkgPath = resolve(__dirname, "../../node_modules/@openai/codex/package.json");
+  try {
+    return JSON.parse(readFileSync(pkgPath, "utf8")).version as string;
+  } catch {
+    console.warn("[launcher] 读不到 @openai/codex 版本，Codex 按需下载会退回内置兜底版本");
+    return "";
+  }
+}
+
+/**
+ * LibreOfficeKit 引擎包同样按需下载（见 src/main/libreoffice-runtime.ts）。
+ * 下载地址形如 @deepseek-ai/libreoffice-kit-win32-x64/-/libreoffice-kit-win32-x64-<ver>.tgz，
+ * 版本号必须与 node_modules 里装的一致（libreoffice-kit 会校验 manifest 版本），
+ * 所以和 Codex 一样在构建期从 package.json 注入。
+ */
+function libreOfficeKitVersion(): string {
+  const pkgPath = resolve(__dirname, "../../node_modules/@deepseek-ai/libreoffice-kit/package.json");
+  try {
+    return JSON.parse(readFileSync(pkgPath, "utf8")).version as string;
+  } catch {
+    console.warn("[launcher] 读不到 @deepseek-ai/libreoffice-kit 版本，office 组件按需下载会退回内置兜底版本");
+    return "";
+  }
+}
+
 // Packaging uses a private output directory so dev --watch cannot replace its files.
 const packageOutDir = process.env.LINGER_PACKAGE_OUT_DIR;
 
 export default defineConfig({
   main: {
+    define: {
+      __CODEX_CLI_VERSION__: JSON.stringify(codexCliVersion()),
+      __LIBREOFFICE_KIT_VERSION__: JSON.stringify(libreOfficeKitVersion()),
+    },
     // exclude：让 kit 的 bare import 不被外部化，交给下面的 alias 打进 bundle。
     plugins: [
       kitSourceUrlPlugin(),

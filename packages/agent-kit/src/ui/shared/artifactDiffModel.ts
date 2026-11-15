@@ -11,12 +11,19 @@ export interface ArtifactChange {
   newContent?: string | null;
 }
 
+/** Internal launcher state may already be present in older message artifact metadata. */
+export function isVisibleArtifact(artifact: { name?: string; id?: string }): boolean {
+  const name = String(artifact.name || artifact.id || "").split(/[\\/]+/).at(-1)?.toLowerCase();
+  return name !== "codebuddy-auth-state.json" && name !== "user-state.json";
+}
+
 /** Changes are history, independent of the list of currently existing generated documents. */
 export function aggregateArtifactChanges(messages: Array<{ role: string; artifacts?: ArtifactChange[] }>): ArtifactChange[] {
   const changes = new Map<string, ArtifactChange>();
   for (const message of messages) {
     if (message.role !== "assistant") continue;
     for (const current of message.artifacts ?? []) {
+      if (!isVisibleArtifact(current)) continue;
       const previous = changes.get(current.id);
       if (current.change === "added") {
         // Recreating a deleted path updates its final state while retaining its original baseline.

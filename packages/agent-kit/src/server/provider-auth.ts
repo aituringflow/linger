@@ -9,7 +9,7 @@
  * 宿主（桌面 / web）只关心「是不是已登录 + 打开哪个网址」，不关心凭据落在哪。
  */
 import { unstable_v2_authenticate, unstable_v2_logout } from "@tencent-ai/agent-sdk";
-import { codeBuddyAuthEnvironment, codeBuddyRuntimeOptions, isCodeBuddyAuthenticated } from "./model-sources.js";
+import { clearCodeBuddyAuthCache, codeBuddyAuthEnvironment, codeBuddyRuntimeOptions, isCodeBuddyAuthenticated, recordCodeBuddyAuthentication } from "./model-sources.js";
 
 /** 登录成功后能拿到的账号信息（SDK 的 userinfo 可能字段缺失，这里统一成字符串）。 */
 export interface ProviderAccount {
@@ -35,7 +35,7 @@ export interface ProviderLoginOptions {
   timeoutMs?: number;
 }
 
-/** 登录态查询（SDK 探测，10s 内必定返回；失败按未登录处理）。 */
+/** 登录态查询（SDK 探测，超时按未登录处理；阈值见 model-sources 的 AUTH_PROBE_TIMEOUT_MS）。 */
 export async function getWorkBuddyAuthStatus(): Promise<ProviderAuthStatus> {
   return { authenticated: await isCodeBuddyAuthenticated() };
 }
@@ -56,6 +56,7 @@ export async function loginWorkBuddy(options: ProviderLoginOptions = {}): Promis
         if (state?.authUrl) void options.onAuthUrl?.(state.authUrl);
       },
     });
+    recordCodeBuddyAuthentication();
     const info = result?.userinfo;
     return {
       ok: true,
@@ -74,6 +75,7 @@ export async function loginWorkBuddy(options: ProviderLoginOptions = {}): Promis
 export async function logoutWorkBuddy(): Promise<{ ok: boolean; error?: string }> {
   try {
     await unstable_v2_logout({ environment: codeBuddyAuthEnvironment(), ...codeBuddyRuntimeOptions() });
+    clearCodeBuddyAuthCache();
     return { ok: true };
   } catch (error) {
     return { ok: false, error: describeAuthError(error) };

@@ -5230,6 +5230,26 @@ function AgentWindowContent({
   const inboxRefreshTimerRef = useRef<number | null>(null);
   useEffect(() => {
     if (!remoteAuthenticated || embeddedMode) return;
+    const memoryObservationStartedAt = Date.now();
+    const observedMemoryMessages = new Set<string>();
+    const observeIncomingMemory = async (sessionId: string) => {
+      if (!selfSub) return;
+      const session = sessionsRef.current.find(item => item.id === sessionId);
+      if (!session || ((session.memberCount ?? 0) === 0 && !session.coworkEverGroup)) return;
+      const host = globalThis as typeof globalThis & { launcher?: { observeGroupMemory?: (input: { sessionId: string; messageId: number; selfSub: string }) => Promise<void> } };
+      if (!host.launcher?.observeGroupMemory) return;
+      try {
+        const response = await apiFetch(`${basePath}/api/sessions/${encodeURIComponent(sessionId)}/messages`, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json() as { messages?: Array<{ id: number; role: string; createdAt?: string | null; revokedAt?: string | null }> };
+        for (const message of data.messages ?? []) {
+          const key = `${sessionId}:${message.id}`;
+          if (message.role !== "user" || message.revokedAt || !Number.isSafeInteger(message.id) || Date.parse(message.createdAt ?? "") < memoryObservationStartedAt || !Number.isFinite(Date.parse(message.createdAt ?? "")) || observedMemoryMessages.has(key)) continue;
+          observedMemoryMessages.add(key);
+          void host.launcher.observeGroupMemory({ sessionId, messageId: message.id, selfSub }).catch(() => { observedMemoryMessages.delete(key); });
+        }
+      } catch { /* A later inbox event can retry. */ }
+    };
     const notifyIncomingMessage = async (sessionId: string) => {
       const session = sessionsRef.current.find(item => item.id === sessionId);
       if (!session || ((session.memberCount ?? 0) === 0 && !session.coworkEverGroup)
@@ -5258,6 +5278,7 @@ function AgentWindowContent({
       onSessionAdded: sessionId => { void syncSessionsInBackground(sessionId); },
       // 任意会话来了新消息 → 立即（去抖）刷新会话列表，未读角标不再等 15 秒轮询
       onSessionMessage: sessionId => {
+        void observeIncomingMemory(sessionId);
         void notifyIncomingMessage(sessionId);
         if (inboxRefreshTimerRef.current != null) return;
         inboxRefreshTimerRef.current = window.setTimeout(() => {

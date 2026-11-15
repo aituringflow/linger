@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { appHomePath } from "./app-home.js";
 import { resolveModelsFile } from "./models-file.js";
 import { query, unstable_v2_createSession, type RawLanguageModel } from "@tencent-ai/agent-sdk";
 
@@ -18,7 +19,68 @@ import { query, unstable_v2_createSession, type RawLanguageModel } from "@tencen
 export type ServerModelOption = string | { id: string; name?: string; meta?: Record<string, unknown> };
 
 const SDK_MODELS_TTL_MS = 5 * 60 * 1000;
-let sdkModelsCache: { at: number; models: { id: string; name?: string; meta?: Record<string, unknown> }[] } | null = null;
+
+/** 已落盘到缓存 / 兜底目录里的 SDK 模型条目（id/展示名/详情 meta，已剔除凭据）。 */
+type SdkModelEntry = { id: string; name?: string; meta?: Record<string, unknown> };
+let sdkModelsCache: { at: number; models: SdkModelEntry[] } | null = null;
+/**
+ * 上一次成功拉取的云端模型目录（不设 TTL）。新鲜拉取失败时作为 stale 兜底：
+ * 慢网 / VPN 抖动导致本次超时或报错时，下拉仍保留上一份可用目录，而不是整列只剩自定义模型。
+ */
+let lastGoodSdkModels: { models: SdkModelEntry[] } | null = null;
+
+/**
+ * 最近一次「探针成功返回」的登录态。探针因 CLI 冷启动 / 超时 / 网络抖动失败时沿用这份结果，
+ * 避免慢网（VPN）下把已登录误判成未登录、弹出重新登录。
+ * 探针返回「空账号」（明确未登录）会覆盖成 false；显式登出时由 clearCodeBuddyAuthCache 清空。
+ */
+let lastKnownAuth: { authenticated: boolean; at: number } | null = null;
+
+/** 磁盘兜底记录的有效期：超过后不再采信，真实登录态以本次探针 / 发送请求为准。 */
+const AUTH_STATE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface PersistedAuthState { authenticated: boolean; environment: string; at: number }
+
+function authStateFile(): string {
+  return appHomePath("codebuddy-auth-state.json");
+}
+
+/** 读磁盘兜底登录态；记录缺失 / 损坏 / 过期 / 环境不一致时返回 null。 */
+function readPersistedAuth(): boolean | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(authStateFile(), "utf8")) as Partial<PersistedAuthState>;
+    if (typeof raw.authenticated !== "boolean" || typeof raw.at !== "number") return null;
+    if (Date.now() - raw.at > AUTH_STATE_TTL_MS) return null;
+    if (raw.environment !== codeBuddyAuthEnvironment()) return null;
+    return raw.authenticated;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedAuth(authenticated: boolean): void {
+  try {
+    fs.mkdirSync(path.dirname(authStateFile()), { recursive: true });
+    const payload: PersistedAuthState = { authenticated, environment: codeBuddyAuthEnvironment(), at: Date.now() };
+    fs.writeFileSync(authStateFile(), JSON.stringify(payload), "utf8");
+  } catch {
+    // 落盘失败不影响主流程；下次探针成功后再写。
+  }
+}
+
+function clearPersistedAuth(): void {
+  try { fs.unlinkSync(authStateFile()); } catch { /* ENOENT 等忽略 */ }
+}
+
+// 慢网 / VPN 下 CLI 冷启动 + 登录态回读可能超过 10s：探针超时过短会被误判为未登录，
+// 云端模型整列被丢掉。阈值放宽并允许环境变量覆盖。
+const AUTH_PROBE_TIMEOUT_MS = Number(process.env.CODEBUDDY_AUTH_PROBE_TIMEOUT_MS || 20_000);
+// 一次模型目录拉取（CLI 冷启动 + getAvailableModels 请求）的整体上限。
+const MODELS_REQUEST_TIMEOUT_MS = Number(process.env.CODEBUDDY_MODELS_TIMEOUT_MS || 15_000);
+// 首次拉取失败后的瞬时重试间隔（只重试一次，避免慢网下反复冷启动 CLI）。
+const MODELS_FETCH_RETRY_DELAY_MS = 500;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** 配置仅补充详情，不改变 SDK 返回的可用模型范围。缓存命中时也重新读取配置。 */
 function supplementModelDetails(models: NonNullable<typeof sdkModelsCache>["models"]): ServerModelOption[] {
@@ -137,18 +199,40 @@ export async function isCodeBuddyAuthenticated(): Promise<boolean> {
   try {
     const account = await Promise.race([
       probe.connect().then(() => probe.accountInfo()),
-      new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("CodeBuddy 登录状态查询超时")), 10_000); }),
+      new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("CodeBuddy 登录状态查询超时")), AUTH_PROBE_TIMEOUT_MS); }),
     ]);
     // 当前 CLI 的实际 account 响应还包含 uid/userId/token，SDK 类型声明尚未覆盖这些字段。
     const cliAccount = account as typeof account & { uid?: string; userId?: string; token?: string };
-    return Boolean(cliAccount.token || cliAccount.userId || cliAccount.uid || account.email || account.tokenSource || account.apiKeySource || account.subscriptionType);
+    const authenticated = Boolean(cliAccount.token || cliAccount.userId || cliAccount.uid || account.email || account.tokenSource || account.apiKeySource || account.subscriptionType);
+    // 探针成功返回：这是明确结论，更新内存与磁盘缓存。
+    lastKnownAuth = { authenticated, at: Date.now() };
+    writePersistedAuth(authenticated);
+    return authenticated;
   } catch {
-    return false;
+    // 探针自身失败（CLI 冷启动 / 超时 / 网络抖动）不等于未登录：先沿用本次运行的历史结论，
+    // 再回退到磁盘上的最近一次明确结果；都没有（首次运行 / 缓存已清）才按未登录兜底。
+    if (lastKnownAuth) return lastKnownAuth.authenticated;
+    const persisted = readPersistedAuth();
+    return persisted ?? false;
   } finally {
     if (timeout) clearTimeout(timeout);
     // 当前 SDK 的 Query 未公开 close；cleanup 是它内部结束 CLI 子进程的方法。
     (probe as unknown as { cleanup(): void }).cleanup();
   }
+}
+
+/** 显式登出后清空登录态与模型缓存，下次探针必须重新判定，不能沿用旧的「已登录」结论。 */
+export function clearCodeBuddyAuthCache(): void {
+  lastKnownAuth = null;
+  sdkModelsCache = null;
+  lastGoodSdkModels = null;
+  clearPersistedAuth();
+}
+
+/** A successful authentication is authoritative even if the next status probe fails. */
+export function recordCodeBuddyAuthentication(): void {
+  lastKnownAuth = { authenticated: true, at: Date.now() };
+  writePersistedAuth(true);
 }
 
 /** SDK 模型与第一个 models.json 分开读取，供本地应用替换自定义部分。 */
@@ -157,6 +241,7 @@ export async function getCodeBuddyModelGroups(): Promise<{ native: ServerModelOp
   if (isCustomModelOnly()) return { native: [], custom };
   if (!(await isCodeBuddyAuthenticated())) {
     sdkModelsCache = null;
+    lastGoodSdkModels = null;
     return { native: [], custom };
   }
   const native = await getAvailableCodeBuddyModels() ?? [];
@@ -186,47 +271,79 @@ export async function getConfiguredCodeBuddyModels(): Promise<ServerModelOption[
 /**
  * Ask the logged-in CodeBuddy CLI for the models available to the current account.
  * The SDK call is experimental, so callers should fall back to getModelOptions().
+ *
+ * 慢网 / VPN 抖动下一次拉取可能超时或报错：失败后重试一次；仍失败则回退到上一份成功目录
+ * （stale 兜底），保证下拉不被清空；一次成功后刷新缓存与 stale 目录。
  */
 export async function getAvailableCodeBuddyModels(): Promise<ServerModelOption[] | null> {
   if (sdkModelsCache && Date.now() - sdkModelsCache.at < SDK_MODELS_TTL_MS) {
     return supplementModelDetails(sdkModelsCache.models);
   }
+  let enriched: SdkModelEntry[] | null = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const fetched = await fetchAvailableCodeBuddyModelsOnce();
+    if (fetched && fetched.length) { enriched = fetched; break; }
+    if (attempt < 2) await sleep(MODELS_FETCH_RETRY_DELAY_MS);
+  }
+  if (enriched && enriched.length) {
+    sdkModelsCache = { at: Date.now(), models: enriched };
+    lastGoodSdkModels = { models: enriched };
+    return supplementModelDetails(enriched);
+  }
+  // 新鲜拉取失败：有上一份成功目录时先回退 stale 数据（即使已过 TTL），保住下拉列表。
+  if (lastGoodSdkModels?.models.length) return supplementModelDetails(lastGoodSdkModels.models);
+  return null;
+}
+
+/** 单次创建 SDK 会话拉取模型目录；我方超时竞态兜底，超时/报错一律返回 null。 */
+async function fetchAvailableCodeBuddyModelsOnce(): Promise<SdkModelEntry[] | null> {
   let session: { getAvailableModels?: () => Promise<Array<{ modelId: string; name: string; description?: string }>>; getAvailableModelsRaw?: () => Promise<RawLanguageModel[]>; close?: () => void } | undefined;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     session = unstable_v2_createSession({
       model: "hy3",
       cwd: process.cwd(),
+      ...codeBuddyRuntimeOptions(),
+      // Some bundled CLI versions reject the SDK's --request-timeout-ms flag.
+      // The outer Promise.race below bounds the whole request instead.
       env: {
         ...process.env,
+        ...codeBuddyRuntimeOptions().env,
         CODEBUDDY_INTERNET_ENVIRONMENT:
           process.env.CODEBUDDY_INTERNET_ENVIRONMENT?.trim() || "internal",
       },
     }) as typeof session;
-    const available = await session!.getAvailableModels?.();
-    if (!Array.isArray(available) || available.length === 0) return null;
-    // 部分 CLI 仅支持简化列表；详情请求失败仍保留已拿到的列表。
-    const raw = await session!.getAvailableModelsRaw?.().catch(() => []) ?? [];
-    const models = available
-      .map((m) => ({
-        id: typeof m.modelId === "string" ? m.modelId.trim() : "",
-        name: typeof m.name === "string" ? m.name.trim() : undefined,
-        meta: typeof m.description === "string" && m.description.trim()
-          ? { description: m.description.trim() }
-          : undefined,
-      }))
-      // CodeBuddy also reports custom models from its own persisted registry as
-      // `custom-local:*`. Our custom source is the first selected models.json only.
-      .filter((m) => m.id && !m.id.startsWith("custom-local:"));
-    if (!models.length) return null;
-    const enriched = models.map((model) => {
-      const details = raw.find((entry) => entry.id === model.id);
-      return { ...model, meta: { ...model.meta, ...(details ? rawModelDetails(details) : {}) } };
+    const work = (async () => {
+      const available = await session!.getAvailableModels?.();
+      if (!Array.isArray(available) || available.length === 0) return null;
+      // 部分 CLI 仅支持简化列表；详情请求失败仍保留已拿到的列表。
+      const raw = await session!.getAvailableModelsRaw?.().catch(() => []) ?? [];
+      const models = available
+        .map((m) => ({
+          id: typeof m.modelId === "string" ? m.modelId.trim() : "",
+          name: typeof m.name === "string" ? m.name.trim() : undefined,
+          meta: typeof m.description === "string" && m.description.trim()
+            ? { description: m.description.trim() }
+            : undefined,
+        }))
+        // CodeBuddy also reports custom models from its own persisted registry as
+        // `custom-local:*`. Our custom source is the first selected models.json only.
+        .filter((m) => m.id && !m.id.startsWith("custom-local:"));
+      if (!models.length) return null;
+      return models.map((model) => {
+        const details = raw.find((entry) => entry.id === model.id);
+        return { ...model, meta: { ...model.meta, ...(details ? rawModelDetails(details) : {}) } };
+      });
+    })();
+    // 我方整体超时竞态：到点直接判失败并在 finally 里关闭会话，避免孤儿 CLI 进程挂到 SDK 默认 60s。
+    const timedOut = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => reject(new Error("CodeBuddy 模型目录拉取超时")), MODELS_REQUEST_TIMEOUT_MS);
     });
-    sdkModelsCache = { at: Date.now(), models: enriched };
-    return supplementModelDetails(enriched);
+    return await Promise.race([work, timedOut]);
   } catch {
     return null;
   } finally {
+    if (timeout) clearTimeout(timeout);
     session?.close?.();
   }
 }

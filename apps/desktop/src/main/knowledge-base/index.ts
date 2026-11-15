@@ -6,7 +6,7 @@ import fsSync from "node:fs";
 import path from "node:path";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { fetchCodexModelOptions, getCodeBuddyModelGroups, getCodexModelOptions } from "@turingflow/agent-kit";
+import { fetchCodexModelOptions, getAvailableCodeBuddyModels, getCodeBuddyModelGroups, getCodexModelOptions, getModelOptions } from "@turingflow/agent-kit";
 import type { KnowledgeFrameworkModels, KnowledgeImageModelChoice } from "../../shared/types.js";
 import { FRAMEWORK_LABELS, readKnowledgeSettings, writeKnowledgeSettings } from "./settings.js";
 import type { IndexProgress } from "./indexer.js";
@@ -15,7 +15,19 @@ import { APP_HOME_DIR } from "../app-name.js";
 
 export let knowledgeMcpServers: Record<string, { type: "http"; url: string; headers: Record<string, string>; eager: boolean }> = {};
 
-export interface KnowledgeModule { destroy(): void }
+export interface KnowledgeModule {
+  destroy(): void;
+  /** 文本 → 768 维查询向量。给长期记忆召回用，复用同一份模型，不额外加载。 */
+  embedText(text: string): Promise<number[]>;
+  embedMemoryDocument(text: string): Promise<number[]>;
+  /**
+   * 预加载检索模型（只建 session，不推理）。
+   * 记忆召回有时间预算，冷启动的几秒不能算在第一次提问的等待里。
+   */
+  warmEmbedding(): Promise<boolean>;
+  /** 检索模型当前状态；phase=done 才保证 embedText 能立刻返回。 */
+  modelStatus(): Promise<{ phase: string; percent?: number }>;
+}
 
 /** Keep parsing, embedding, filesystem traversal and synchronous SQLite work off the main thread. */
 export function registerKnowledgeBase(appHomeDir?: string): KnowledgeModule {
@@ -224,27 +236,31 @@ export function registerKnowledgeBase(appHomeDir?: string): KnowledgeModule {
     const [codebuddy, codex] = await Promise.all([codebuddyImageModels(), codexImageModels()]);
     return [codebuddy, codex];
   });
+  ipcMain.handle("knowledge:framework-models", async (_event, framework: unknown) => {
+    if (framework === "codebuddy") return codebuddyImageModels(true);
+    if (framework === "codex") return codexImageModels();
+    throw new Error("Unknown model framework");
+  });
+  ipcMain.handle("knowledge:custom-memory-models", () => getModelOptions().map(model => codebuddyChoice(model, true)));
 
-  /** WorkBuddy（CodeBuddy SDK）：已登录给原生模型 + 自定义模型，未登录只有自定义模型。 */
-  async function codebuddyImageModels(): Promise<KnowledgeFrameworkModels> {
+  function codebuddyChoice(model: string | { id: string; name?: string; meta?: Record<string, unknown> }, isCustom: boolean): KnowledgeImageModelChoice {
+    const id = typeof model === "string" ? model : model.id;
+    const meta = typeof model === "string" ? undefined : model.meta;
+    return { id, name: typeof model === "string" ? undefined : model.name, vendor: typeof meta?.vendor === "string" ? meta.vendor : undefined,
+      custom: isCustom, supportsImages: typeof meta?.supportsImages === "boolean" ? meta.supportsImages : undefined };
+  }
+
+  /** WorkBuddy SDK models plus models.json; retain custom models if the SDK probe fails. */
+  async function codebuddyImageModels(includeSdk = false): Promise<KnowledgeFrameworkModels> {
     const base = { id: "codebuddy" as const, name: FRAMEWORK_LABELS.codebuddy, models: [] as KnowledgeImageModelChoice[] };
     try {
-      const { native, custom } = await getCodeBuddyModelGroups();
-      const choice = (model: string | { id: string; name?: string; meta?: Record<string, unknown> }, isCustom: boolean): KnowledgeImageModelChoice => {
-        const id = typeof model === "string" ? model : model.id;
-        const meta = typeof model === "string" ? undefined : model.meta;
-        return {
-          id,
-          name: typeof model === "string" ? undefined : model.name,
-          vendor: typeof meta?.vendor === "string" ? meta.vendor : undefined,
-          custom: isCustom,
-          supportsImages: typeof meta?.supportsImages === "boolean" ? meta.supportsImages : undefined,
-        };
-      };
+      const groups = includeSdk ? { custom: getModelOptions(), native: await getAvailableCodeBuddyModels() } : await getCodeBuddyModelGroups();
+      const { custom, native } = groups;
       // 自定义放前面：用户自己配的通常就是本地视觉模型，命中率更高
-      return { ...base, models: [...custom.map((m) => choice(m, true)), ...native.map((m) => choice(m, false))] };
+      return { ...base, models: [...custom.map((m) => codebuddyChoice(m, true)), ...(native ?? []).map((m) => codebuddyChoice(m, false))],
+        ...(!native ? { error: "workbuddy_models_unavailable" } : {}) };
     } catch (error) {
-      return { ...base, error: error instanceof Error ? error.message : String(error) };
+      return { ...base, models: getModelOptions().map(model => codebuddyChoice(model, true)), error: error instanceof Error ? error.message : String(error) };
     }
   }
 
@@ -269,6 +285,13 @@ export function registerKnowledgeBase(appHomeDir?: string): KnowledgeModule {
       return { ...base, error: error instanceof Error ? error.message : String(error) };
     }
   }
+  // getModelStatus / downloadModel 已由上面的批量注册覆盖，这里只补它没有的通道。
+  // 重复注册会让 Electron 直接抛错，把整个知识库模块（包括下面这些 handler）带崩。
+  /** 文本 → 768 维查询向量。长期记忆召回用它，和知识库共用同一份模型。 */
+  ipcMain.handle("knowledge:embedText", (_event, text: unknown) => {
+    if (typeof text !== "string" || !text.trim()) throw new Error("待向量化的文本为空");
+    return call("embedText", text);
+  });
   ipcMain.handle("knowledge:openModelFolder", async (_event, model: string) => {
     const directory = model === "embeddinggemma2" ? "embeddinggemma2" : null;
     if (!directory) return { ok: false, error: "未知模型" };
@@ -307,7 +330,13 @@ export function registerKnowledgeBase(appHomeDir?: string): KnowledgeModule {
     await call("removeFile", id, file.path);
     return { ok: true };
   });
-  return { destroy() { server.close(); knowledgeMcpServers = {}; worker.kill(); } };
+  return {
+    destroy() { server.close(); knowledgeMcpServers = {}; worker.kill(); },
+    embedText: (text: string) => call("embedText", text) as Promise<number[]>,
+    embedMemoryDocument: (text: string) => call("embedMemoryDocument", text) as Promise<number[]>,
+    warmEmbedding: () => call("warmEmbedding") as Promise<boolean>,
+    modelStatus: () => call("getModelStatus") as Promise<{ phase: string; percent?: number }>,
+  };
 }
 
 export type { IndexProgress } from "./indexer.js";

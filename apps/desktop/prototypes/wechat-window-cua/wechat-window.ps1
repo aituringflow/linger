@@ -117,6 +117,20 @@ function Get-WechatWindow {
   $processes = @(Get-Process -Name Weixin,WeChat -ErrorAction SilentlyContinue)
   if ($processes.Count -eq 0) { throw '微信尚未运行。请先启动微信并打开已登录的聊天窗口。' }
   $candidates = @(Get-WechatCandidates $processes)
+  # Minimized Weixin 4.x windows report an unusable UIA rectangle. Restore a
+  # single unclassified candidate without activation, then check its actual UI;
+  # never treat an unverified or login window as a chat.
+  if ($Action -eq 'prepare') {
+    $retry = Select-WechatRestoreCandidate -Candidates $candidates
+    if ($null -ne $retry) {
+      [void][WechatWindowNative]::ShowWindow($retry.Handle, 4) # SW_SHOWNOACTIVATE
+      Start-Sleep -Milliseconds 200
+      $retry.kind = Get-WechatWindowKind $retry.Handle $retry.className
+      $retry.visible = [WechatWindowNative]::IsWindowVisible($retry.Handle)
+      $retry.minimized = [WechatWindowNative]::IsIconic($retry.Handle)
+      if ($retry.kind -ne 'chat') { [void][WechatWindowNative]::ShowWindow($retry.Handle, 6) } # restore prior minimized state
+    }
+  }
   return Select-WechatCandidate -Candidates $candidates
 }
 

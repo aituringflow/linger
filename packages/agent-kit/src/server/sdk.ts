@@ -1736,6 +1736,13 @@ async function consumeSession(
           : undefined,
       });
     }
+    // CLI 侧的失败消息只有 type=error，正文在 error 字段里；不单独记下来，
+    // 这类"一句话都没回"的轮次就只能看到一个空结果，无法定位原因。
+    if ((msg as { type?: string }).type === "error") {
+      slog(sid, "cli.error_msg", {
+        error: (msg as { error?: unknown }).error ?? null,
+      }, "error", 8000);
+    }
     if (msg.type === "system") {
       const init = msg as { session_id?: string; subtype?: string; mcp_servers?: Array<{ name?: string; status?: string }> ; tools?: string[] };
       slog(sid, "cli.system", {
@@ -2522,6 +2529,8 @@ export function createAgentSessionStream({
           entry = undefined;
         }
         if (entry && entry.mcpFingerprint !== currentMcpFingerprint) {
+          // A changed transport requires a new process, but must not discard the CLI conversation.
+          resumeSessionId = entry.cliSessionId ?? sid;
           slog(sid, "session.mcp_changed", { servers: Object.keys(normalized.mcpServers ?? {}) }, "info");
           closeSession(sid);
           entry = undefined;

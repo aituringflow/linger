@@ -192,6 +192,13 @@ export interface LauncherState {
   showModel?: boolean;
   /** 输入框显示上下文使用情况，默认关闭。 */
   showContextUsage?: boolean;
+  /**
+   * 长期记忆开关（默认关闭）。
+   *
+   * 打开后每轮对话都会先过一道意图门：只有明显指向过去的问题才去召回，
+   * 通用问答不查，避免白白多一次往返。首次打开会确保检索模型已就位。
+   */
+  memoryEnabled?: boolean;
   selectedModel?: string;
   /** 输入框显示语音按钮（默认开）。关闭后按住说话仍可用，只是不显示可见的麦克风按钮。 */
   showVoiceButton?: boolean;
@@ -321,6 +328,12 @@ export interface LauncherApi {
   getDomainTicket(): Promise<string | null>;
   contactsApi(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: any }>;
   webChatApi(method: string, path: string, body?: string): Promise<{ status: number; contentType: string; body: string }>;
+  /**
+   * 查长期记忆。开关未打开、意图门未命中、或服务不可达时都返回空结果，
+   * 调用方不必区分——拼上下文时没有事实就是没查到。
+   */
+  memoryRecall(query: string): Promise<LauncherMemoryRecall>;
+  observeGroupMemory(input: { sessionId: string; messageId: number; selfSub: string }): Promise<void>;
   /** 发系统通知；返回是否真正显示（系统不支持/参数非法时为 false）。 */
   showNotification(payload: LauncherNotificationPayload): Promise<boolean>;
   /** 设置 macOS Dock 图标上的未读数 badge；传 0 清空。 */
@@ -424,6 +437,8 @@ export interface LauncherApi {
     openModelFolder(model: "embeddinggemma2"): Promise<{ ok: boolean; error?: string }>;
     getModelStatus(model?: "embeddinggemma2"): Promise<KnowledgeModelStatus>;
     downloadModel(model?: "embeddinggemma2"): Promise<KnowledgeModelStatus>;
+    /** 文本 → 768 维查询向量（与知识库同一份模型、同一个向量空间）。 */
+    embedText(text: string): Promise<number[]>;
     onModelStatus(listener: (p: KnowledgeModelStatus) => void): () => void;
     /** 兼容旧调用：只取前 100 条，新代码用 queryFiles */
     listFiles(offset?: number): Promise<Array<{ id: number; path: string; title: string; type: string; status: string; size: number; chunkCount: number; error?: string | null }>>;
@@ -448,9 +463,11 @@ export interface LauncherApi {
     /** 知识库设置（图片识别模型、窗口关闭后是否后台索引） */
     getSettings(): Promise<KnowledgeSettings>;
     /** 保存设置；`imageModel: null` 清除选择、回退默认模型 */
-    saveSettings(patch: { imageModel?: KnowledgeImageModel | null; backgroundIndexing?: boolean }): Promise<KnowledgeSettings>;
+    saveSettings(patch: { imageModel?: KnowledgeImageModel | null; memoryImageModel?: KnowledgeImageModel | null; backgroundIndexing?: boolean }): Promise<KnowledgeSettings>;
     /** 图片识别可选的框架与模型（框架自带模型 + models.json 自定义模型） */
     listImageModels(): Promise<KnowledgeFrameworkModels[]>;
+    listFrameworkModels(framework: KnowledgeFramework): Promise<KnowledgeFrameworkModels>;
+    listCustomMemoryModels(): Promise<KnowledgeImageModelChoice[]>;
   };
   platform: string;
 }
@@ -488,6 +505,7 @@ export interface KnowledgeImageModel {
 /** 知识库全局设置 */
 export interface KnowledgeSettings {
   imageModel?: KnowledgeImageModel;
+  memoryImageModel?: KnowledgeImageModel;
   /** 知识库窗口关闭后继续在后台索引；默认 true */
   backgroundIndexing?: boolean;
 }
@@ -607,6 +625,27 @@ export interface KnowledgeSearchResult {
 }
 
 export interface KnowledgeModelStatus { id: "embeddinggemma2"; phase: "checking" | "downloading" | "done" | "error"; file: string; percent: number; downloadedMB: number; totalMB: number; error?: string }
+
+/** 一条被召回的长期记忆事实。时间用来消解「上次」指的是哪一次。 */
+export interface LauncherMemoryFact {
+  description: string;
+  /** 起始时间（ISO）；瞬时事件的两端相同。 */
+  validFrom: string | null;
+  /** null = 至今仍然如此。 */
+  validTo: string | null;
+  /** 余弦相似度；纯结构化检索时为 0。 */
+  score: number;
+  entities: string[];
+}
+
+export interface LauncherMemoryRecall {
+  /** 意图门的结论，便于排查「为什么这轮没查记忆」。 */
+  gate: { hit: boolean; score: number; reason: string };
+  facts: LauncherMemoryFact[];
+  mode: "vector" | "structured";
+  /** 已拼好的上下文文本，直接塞进 system 消息；没有事实时为空串。 */
+  context: string;
+}
 /**
  * 图片片段的处理阶段。
  * ocr → describing → described 是主链路；模型不可用/失败时回退 fallback（保留 OCR 原文）。

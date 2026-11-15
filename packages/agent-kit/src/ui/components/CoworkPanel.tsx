@@ -39,6 +39,7 @@ import type { ComposerReference, ComposerReferenceSource, SessionItem, UiAttachm
 import AiResponse from "../chat/AiResponse.tsx";
 import type { CoworkAgentInfo } from "./CoworkAgentsManager.tsx";
 import type { ArtifactChange } from "./ArtifactDiff.tsx";
+import { isVisibleArtifact } from "../shared/artifactDiffModel.ts";
 import HumanMessage from "../chat/HumanMessage.tsx";
 import TimeMarker, { shouldShowTimeMarker } from "../chat/TimeMarker.tsx";
 import { quickSessionTitle } from "../chat/quickTitle.ts";
@@ -564,6 +565,12 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
     // 新的群聊消息（含自己刚发送的带附件消息）广播给主窗口：合并进该会话 rt.messages，
     // 否则右栏「输入文件」只含切会话时的历史快照，缺群聊进行中新增的附件（见 COWORK_MESSAGE_UPDATE_EVENT）。
     if (isNew) {
+      // Private desktop memory processing is independent of the shared group agent.
+      // The host re-fetches and verifies this message and membership before writing.
+      if (stateRef.current && message.role === "user" && !message.revokedAt && message.content?.trim()) {
+        const host = globalThis as typeof globalThis & { launcher?: { observeGroupMemory?: (input: { sessionId: string; messageId: number; selfSub: string }) => Promise<void> } };
+        void host.launcher?.observeGroupMemory?.({ sessionId, messageId: message.id, selfSub }).catch(() => {});
+      }
       window.dispatchEvent(new CustomEvent(COWORK_MESSAGE_UPDATE_EVENT, { detail: { sessionId, message } }));
     }
     // 新的助手回复到达（非 SSE 重投）：分发给注册能力抽取草稿/写状态，与单聊 onAssistantResponse 对齐。
@@ -607,6 +614,13 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
       setHistoryOnly(false);
       setLoadError("");
       for (const message of next.messages) lastId.current = Math.max(lastId.current, message.id);
+      // Reconnect/poll can deliver messages missed by SSE. Do not scan initial history.
+      if (stateRef.current) {
+        const host = globalThis as typeof globalThis & { launcher?: { observeGroupMemory?: (input: { sessionId: string; messageId: number; selfSub: string }) => Promise<void> } };
+        for (const message of next.messages) if (message.role === "user" && !message.revokedAt && message.content?.trim() && !stateRef.current.messages.some(existing => existing.id === message.id)) {
+          void host.launcher?.observeGroupMemory?.({ sessionId, messageId: message.id, selfSub }).catch(() => {});
+        }
+      }
       const confirmed = new Set(next.messages.map(message => message.clientMessageId).filter(Boolean));
       if (confirmed.size) setPendingMessages(current => current.filter(item => !confirmed.has(item.localId)));
       setState(current => {
@@ -1496,7 +1510,7 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
             }}><FeedbackVoteIcon vote="up" selected /></button></div><button type="button" className="msg-menu-tip msg-reply-button" data-tooltip={t("reply")} aria-label={t("replyMessage")} onClick={() => { setReplyToId(message.id); composerRef.current?.focus(); }}><ReplyBubbleIcon /></button></div>;
             if (isAssistant) {
               // 与一人对话一致：答复底部（msg-footer 上方）显示本消息的产物操作（查看产出物 / 查看变更）
-              const msgArtifacts = Array.isArray(message.artifacts) ? message.artifacts : [];
+              const msgArtifacts = Array.isArray(message.artifacts) ? message.artifacts.filter(isVisibleArtifact) : [];
               const addedCount = msgArtifacts.filter(artifact => artifact.change === "added" || !artifact.change).length;
               const changeCount = msgArtifacts.filter(artifact => artifact.change === "modified" || artifact.change === "deleted").length;
               const firstChangeId = msgArtifacts.find(artifact => artifact.change === "modified" || artifact.change === "deleted")?.id ?? "";

@@ -7,7 +7,7 @@ import FeedbackButtons from "./FeedbackButtons.tsx";
 import ModelSelect, { modelOptionKey, type ModelMeta } from "./ModelSelect.tsx";
 import { apiFetch } from "../shared/apiFetch.ts";
 import ThinkingActivity from "./ThinkingActivity.tsx";
-import { activityDetail, memoryToolLabel, toolActivityText } from "../shared/toolActivity.ts";
+import { activityDetail, localToolKind, memoryToolLabel, toolActivityText } from "../shared/toolActivity.ts";
 
 export type CompareSubmission = { id: number; sessionId: string; text: string; attachments?: { url: string; name: string }[] };
 type Mode = "codebuddy" | "codex";
@@ -23,11 +23,14 @@ function duration(secs?: number): string {
 }
 
 function toolTitle(name: string): string {
+  // 与 ToolUi 同一套精确识别：本地知识库/记忆不能因为名字里有 search 就叫网页搜索。
+  const localKind = localToolKind(name);
+  if (localKind) return localKind === "knowledge" ? "知识库搜索" : "搜索记忆";
   const memoryLabel = memoryToolLabel(name);
   if (memoryLabel) return memoryLabel;
   if (name === "Command") return "运行命令";
   if (name === "FileChange") return "编辑文件";
-  if (name === "WebSearch") return "搜索网页";
+  if (/websearch|webfetch|fetch_webpage/i.test(name)) return "网页搜索";
   if (name.includes("/")) return `MCP · ${name}`;
   return name;
 }

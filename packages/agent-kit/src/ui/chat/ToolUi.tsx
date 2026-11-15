@@ -4,16 +4,24 @@ import { translateChat, useChatLocale, useChatTranslation } from "./i18n.tsx";
 
 import type { ReactNode } from "react";
 import type { UiTool } from "./types.ts";
-import { activityDetail, isCommandTool, memoryToolLabel } from "../shared/toolActivity.ts";
+import { activityDetail, isCommandTool, localToolKind, memoryToolLabel } from "../shared/toolActivity.ts";
 
 // 工具调用用户友好标签 + 图标：SDK 工具名（WebFetch/Bash/mcp__xxx 等，无 description 字段）→
-// 用户能读懂的短词 + 语义 inline SVG（黑白灰系、stroke 风格）。语义匹配按关键词分组，
-// 覆盖大小写/下划线/前缀差异；未命中时原样返回工具名。
+// 用户能读懂的短词 + 语义 inline SVG（黑白灰系、stroke 风格）。
+// 本地 MCP 按 (server, tool) 精确识别优先，其余按关键词分组兜底（覆盖大小写/下划线/
+// 前缀差异）；网页搜索必须带 web/url/http 语义，未命中的 search 只给中性文案或原名。
 import { iconGlobe, iconTerminal, iconFilePlus, iconFile, iconSearch, iconPencil, iconNotebook, iconBrowser, iconAsk } from "../icons/ToolIcons.tsx";
 
 export function toolMeta(tool?: UiTool | null, locale: "zh-CN" | "en" = "zh-CN"): { label: string; icon: ReactNode } {
   if (!tool) return { label: "", icon: null };
   const raw = String(tool.name || "");
+  // 本地 MCP 先精确识别：名字里的 search 只是动词，不能拿来推断检索来源。
+  const localKind = localToolKind(raw);
+  if (localKind) {
+    return localKind === "knowledge"
+      ? { label: translateChat(locale, "toolKnowledge"), icon: iconNotebook }
+      : { label: translateChat(locale, "toolMemorySearch"), icon: iconSearch };
+  }
   const memoryLabel = memoryToolLabel(raw);
   if (memoryLabel) {
     const memoryKeys = { "保存记忆": "toolMemorySave", "查看记忆": "toolMemoryList", "删除记忆": "toolMemoryDelete", "查找记忆文件": "toolMemoryFind" } as const;
@@ -25,7 +33,9 @@ export function toolMeta(tool?: UiTool | null, locale: "zh-CN" | "en" = "zh-CN")
   // 顺序敏感：browser 组必须先于 search（control_browser 含 "browser" 且不含 "search"）
   if (b.includes("browser")) return { label: translateChat(locale, "toolBrowser"), icon: iconBrowser };
   if (b.includes("knowledge") || b.includes("kb")) return { label: translateChat(locale, "toolKnowledge"), icon: iconNotebook };
-  if (b.includes("search") || b.includes("fetch") || b.includes("browse")) {
+  // 网页工具要同时带 web/url/http 语义和检索动词。只含 search 就认定为网页搜索，
+  // 会把 search_memory 之类的本地 MCP 全标错，用户还以为记忆被拿去上网搜了。
+  if (/search|fetch|browse|crawl/.test(b) && /web|internet|url|http|fetch_webpage/.test(b)) {
     return { label: translateChat(locale, "toolWeb"), icon: iconGlobe };
   }
   if (isCommandTool(raw)) {
@@ -38,6 +48,8 @@ export function toolMeta(tool?: UiTool | null, locale: "zh-CN" | "en" = "zh-CN")
   if (b.includes("edit") || b.includes("patch")) return { label: translateChat(locale, "toolEdit"), icon: iconPencil };
   if (b.includes("notebook")) return { label: translateChat(locale, "toolNotebook"), icon: iconNotebook };
   if (b.includes("ask") || b.includes("question")) return { label: translateChat(locale, "toolAsk"), icon: iconAsk };
+  // 认不出来的 search 工具给中性文案，别再默认扣上「网页搜索」的帽子。
+  if (b.includes("search")) return { label: translateChat(locale, "toolSearch"), icon: iconSearch };
   return { label: base || raw, icon: null };
 }
 

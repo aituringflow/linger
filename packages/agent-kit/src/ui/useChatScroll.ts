@@ -190,8 +190,12 @@ export function useChatScroll(opts: {
     if (deltaY < 0) {
       pauseFollowing();
     } else {
+      // 手动滚轮应立即接管正在执行的回底动画。
+      if (jumpAnimatingRef.current) pauseFollowing();
       lastDownIntentAtRef.current = Date.now();
-      if (!stickToBottomRef.current &&
+      // 置顶留白必须保留到用户主动点击回底或发送新消息；在留白末尾
+      // 恢复跟随会撤掉 spacer，使浏览器钳制 scrollTop，画面突然跳动。
+      if (!stickToBottomRef.current && !pinActiveRef.current && !pinFrozenRef.current &&
         el.scrollHeight - el.clientHeight - el.scrollTop < 8) {
         resumeFollowing();
       }
@@ -447,6 +451,7 @@ export function useChatScroll(opts: {
       syncAtBottom(el);
       // 仅由近期向下输入或滚动条拖动恢复；浏览器锚定引发的向下 scroll 不能恢复。
       if (scrollDelta > 1 && !stickToBottomRef.current &&
+        !pinActiveRef.current && !pinFrozenRef.current &&
         (Date.now() - lastDownIntentAtRef.current < 500 || pointerScrollingRef.current) &&
         totalHeight - el.clientHeight - el.scrollTop < 8) {
         resumeFollowing();

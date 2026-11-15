@@ -267,6 +267,7 @@ export const INTERMEDIATE_DIR_NAMES: ReadonlySet<string> = new Set(["_drafts", "
  *  node_modules/.venv 等会随工程递归扫入成千上万个文件（元数据+文本内容内联），
  *  单条消息 artifacts 可膨胀到几十 MB，直接拖垮会话消息读取。 */
 const DEPENDENCY_DIR_NAMES: ReadonlySet<string> = new Set(["node_modules", ".venv", "venv", "site-packages"]);
+const INTERNAL_STATE_FILES: ReadonlySet<string> = new Set(["user-state.json", "codebuddy-auth-state.json"]);
 
 /** 判断一个相对路径是否属于中间产物：第一段命中保留目录名 / 以点开头；
  *  或**任意路径段**命中 CodeBuddy CLI 内部目录（tool-results / subagents / .codebuddy）——
@@ -274,6 +275,8 @@ const DEPENDENCY_DIR_NAMES: ReadonlySet<string> = new Set(["node_modules", ".ven
 export function isIntermediateRel(rel: string): boolean {
   const parts = String(rel).split(/[\\/]+/).filter(Boolean);
   const first = parts[0] || "";
+  // CodeBuddy runtime state is never a user-facing artifact.
+  if (INTERNAL_STATE_FILES.has((parts.at(-1) ?? "").toLowerCase())) return true;
   if (first.startsWith(".") || INTERMEDIATE_DIR_NAMES.has(first)) return true;
   return parts.some((p) => p === "tool-results" || p === "subagents" || p === ".codebuddy" || DEPENDENCY_DIR_NAMES.has(p));
 }
@@ -281,9 +284,9 @@ export function isIntermediateRel(rel: string): boolean {
 /** CLI 内部绝对路径判定（registry 登记条目用）：路径任意段命中 tool-results/subagents/.codebuddy
  *  → CodeBuddy SDK 内部文件，不是用户交互产物，不展示。 */
 export function isCliInternalAbsPath(abs: string): boolean {
-  return String(abs)
-    .split(/[\\/]+/)
-    .some((p) => p === "tool-results" || p === "subagents" || p === ".codebuddy");
+  const parts = String(abs).split(/[\\/]+/);
+  return INTERNAL_STATE_FILES.has((parts.at(-1) ?? "").toLowerCase()) ||
+    parts.some((p) => p === "tool-results" || p === "subagents" || p === ".codebuddy");
 }
 
 /* ======================= 产物登记表（registry） =======================
@@ -793,8 +796,8 @@ function sameFile(before: ArtifactStamp | undefined, after: ArtifactStamp): bool
 }
 
 /**
- * 基线：记录某会话「开始前」已存在的产物（宿主 + 沙箱两个位置的会话目录，以及产物根下散落文件），
- * 返回 key（"s:"/"t:" + 文件名）→ 文件戳，用于增量与更新识别。
+ * 基线：记录某会话「开始前」已存在的产物；不扫描应用数据根目录，
+ * 返回 key（"s:" + 文件名）→ 文件戳，用于增量与更新识别。
  */
 export async function baselineArtifacts(
   sessionId: string,
@@ -849,7 +852,6 @@ export async function baselineArtifacts(
   for (const dir of await readDirCandidates(sessionId, workspaceDir)) {
     await stamp(dir, "s:");
   }
-  await stamp(artifactRootFor(workspaceDir), "t:");
   await stampWorkDir(workDirRoot(workspaceDir));
   // 登记在任意目录的既有文件也必须有本轮基线，尤其用于 shell 修改和删除的旧内容。
   for (const entry of await loadRegistry(sessionId, workspaceDir)) {
@@ -930,9 +932,7 @@ export async function collectArtifacts(
   /** 写工具执行前的目标文件快照（键 = 归一化绝对路径）：区分「编辑已有文件」与「新建文件」并提供 diff 旧内容 */
   preWrite?: Map<string, ArtifactStamp>,
 ): Promise<ArtifactChange[]> {
-  // 纯路径，不在此预建空目录；仅在确有散落文件需要移入（见下方 moveTo）时才创建。
-  const sessionDir = artifactSessionDir(sessionId, workspaceDir);
-  const root = artifactRootFor(workspaceDir);
+  // Scan session directories only: the application-data root also holds live configuration.
   const found: ArtifactChange[] = [];
   const diskKeys = new Set<string>(); // 本轮结束后磁盘上仍存在的 key（deleted 检测用）
 
@@ -945,7 +945,7 @@ export async function collectArtifacts(
   }
 
   /** 递归扫描一个目录；rel 为相对该扫描根的 posix 路径（顶层文件为 ""，子目录为 "sub/"） */
-  const consider = async (dir: string, prefix: "s:" | "t:", moveTo: string | null, rel: string) => {
+  const consider = async (dir: string, rel: string) => {
     let entries: import("node:fs").Dirent[];
     try {
       entries = await fs.readdir(dir, { withFileTypes: true });
@@ -954,15 +954,11 @@ export async function collectArtifacts(
     }
     for (const e of entries) {
       const childRel = rel ? `${rel}/${e.name}` : e.name;
-      const key = prefix + childRel;
+      const key = "s:" + childRel;
       if (e.isDirectory()) {
-        // 根目录（t:）下的目录一律不搬移、不扫描：它可能是**其他会话自己的目录**
-        //（如另一场对话的 .agent/<sid>/），整体搬进来会造成跨会话产物混入。
-        // 只处理「模型忘记带 sessionId」的散落**文件**；散落子目录属罕见且无法安全归因，留原地即可。
-        if (prefix === "t:") continue;
         // 中间产物目录（_drafts/ 等）不进入产物清单
         if (isIntermediateRel(childRel)) continue;
-        await consider(path.join(dir, e.name), prefix, moveTo, childRel);
+        await consider(path.join(dir, e.name), childRel);
         continue;
       }
       if (!e.isFile()) continue;
@@ -977,23 +973,6 @@ export async function collectArtifacts(
       const stamp = baseline.get(key);
       if (sameFile(stamp, current)) continue;
 
-      if (prefix === "t:" && moveTo) {
-        // 散落根目录的文件 → 移入会话子目录，确保跨会话不串；仅在确有文件要移动时才建目录
-        const src = path.join(dir, e.name);
-        const dst = path.join(moveTo, sanitizeArtifactName(childRel));
-        await fs.mkdir(moveTo, { recursive: true }).catch(() => {});
-        try {
-          await fs.rename(src, dst);
-        } catch {
-          try {
-            const buf = await fs.readFile(src);
-            await fs.writeFile(dst, buf);
-            await fs.unlink(src);
-          } catch {
-            /* 忽略无法移动的文件 */
-          }
-        }
-      }
       const id = sanitizeArtifactName(childRel);
       const change: ArtifactChange = {
         id,
@@ -1007,7 +986,7 @@ export async function collectArtifacts(
       found.push(change);
       // shell 等工具直接写会话目录时也持久化产出身份，后续 Edit 不会把它误当成用户既有文件。
       if (change.change === "added") {
-        const trackedPath = prefix === "t:" && moveTo ? path.join(moveTo, id) : absolutePath;
+        const trackedPath = absolutePath;
         await registerArtifactPath(sessionId, trackedPath, workspaceDir, undefined, "model", {
           exists: false, mtimeNs: 0n, size: 0, content: null,
         });
@@ -1023,9 +1002,8 @@ export async function collectArtifacts(
   // transcript id 的目录，只扫基目录会漏推这一轮的产物卡片。
   // 本轮 sid 自身对应的目录排在最前（宿主根优先的既有次序不变）。
   for (const dir of await readDirCandidates(sessionId, workspaceDir)) {
-    await consider(dir, "s:", null, "");
+    await consider(dir, "");
   }
-  await consider(root, "t:", sessionDir, "");
   // 工作目录根散落文件（README/.log 等工程或外部进程文件）：只登记（origin=scan），
   // 不产生本轮变更推送——它们不是对话产物；模型按指示用 Write 写 cwd 根的文件会以
   // origin=model 走 registry 段正常推送（见下），此处只兜底登记，不做展示。
@@ -1131,6 +1109,7 @@ export async function listSessionArtifacts(
 ): Promise<ArtifactMeta[]> {
   const excludedFromList = (rel: string): boolean => {
     const parts = rel.split(/[\\/]+/).filter(Boolean);
+    if (INTERNAL_STATE_FILES.has((parts.at(-1) ?? "").toLowerCase())) return true;
     if (!includeHidden) return isIntermediateRel(rel) || parts.some((part) => part.startsWith("."));
     return INTERMEDIATE_DIR_NAMES.has(parts[0] ?? "") || parts.some((part) =>
       part === "tool-results" || part === "subagents" || part === ".codebuddy" ||

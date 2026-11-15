@@ -51,6 +51,7 @@ function defaultState(): LauncherState {
     appearance: "light",
     showModel: false,
     showContextUsage: false,
+    memoryEnabled: false,
     showVoiceButton: true,
     rightCtrlVoice: true,
     dockDomainEntry: false,

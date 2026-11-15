@@ -124,7 +124,7 @@ function postJson(
       controller.signal.removeEventListener("abort", onAbort);
       if (error) reject(error); else resolve(value!);
     };
-    const onAbort = () => request.destroy(new Error("图片描述已取消"));
+    const onAbort = () => request.destroy(new Error("模型请求已取消"));
     controller.signal.addEventListener("abort", onAbort, { once: true });
 
     request.on("error", error => finish(error));
@@ -144,7 +144,14 @@ export async function chatWithImage(
   image: { buffer: Buffer; mediaType: string },
   signal?: AbortSignal,
 ): Promise<string> {
-  const dataUrl = `data:${image.mediaType};base64,${image.buffer.toString("base64")}`;
+  return chatWithImages(model, systemPrompt, userPrompt, [image], signal);
+}
+
+/** Send one or more images, or a text-only follow-up, to a custom vision model. */
+export async function chatWithImages(
+  model: CustomModelEntry, systemPrompt: string, userPrompt: string,
+  images: Array<{ buffer: Buffer; mediaType: string }>, signal?: AbortSignal,
+): Promise<string> {
   const body = JSON.stringify({
     model: model.id,
     // 描述任务不需要发散
@@ -156,10 +163,10 @@ export async function chatWithImage(
       { role: "system", content: systemPrompt },
       {
         role: "user",
-        content: [
+        content: images.length ? [
           { type: "text", text: userPrompt },
-          { type: "image_url", image_url: { url: dataUrl } },
-        ],
+          ...images.map(image => ({ type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.buffer.toString("base64")}` } })),
+        ] : userPrompt,
       },
     ],
   });

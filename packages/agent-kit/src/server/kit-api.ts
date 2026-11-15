@@ -25,6 +25,8 @@ import type { LoginHandlersOptions } from "./auth/handlers.js";
 import { createUserFilesHandlers } from "./user-files.js";
 import { createFileHandlers } from "./library.js";
 import { createMemoryHandlers } from "./memory.js";
+import { createMemoryUpsertHandler } from "./memory/upsert.js";
+import { createMemoryRecallHandler } from "./memory/handler.js";
 import { getCodeBuddyModelGroups, mergeCodeBuddyModels, getModelOptions, getDefaultModel, isModelSelectEnabled, isCustomModelOnly } from "./model-sources.js";
 import { getConfiguredAgentModes, resolveAgentMode } from "./agent-runtime.js";
 import { fetchCodexModelOptions, getCodexModelOptions } from "./codex-models.js";
@@ -74,6 +76,8 @@ export function createAgentKitApi(options: AgentKitApiOptions = {}) {
   const userFiles = createUserFilesHandlers();
   const fileApi = createFileHandlers();
   const memory = createMemoryHandlers();
+  const memoryRecall = createMemoryRecallHandler();
+  const memoryUpsert = createMemoryUpsertHandler();
   const promptEnhance = createPromptEnhanceHandler();
   const linkPreview = createLinkPreviewHandler();
   const audioSession = createAudioSessionHandler();
@@ -165,8 +169,12 @@ export function createAgentKitApi(options: AgentKitApiOptions = {}) {
       if (method === "DELETE") return fileApi.files.DELETE(request);
       return METHOD_NOT_ALLOWED();
     }
-    if (a === "memories" && b === "file" && method === "GET") return memory.FILE(request);
-    if (a === "memories" && b === "visibility" && (method === "GET" || method === "PATCH")) return memory.VISIBILITY(request);
+    // ---- 长期记忆召回（时空事实库，只读）：查询向量由桌面前端带进来 ----
+    if (a === "memory" && b === "upsert" && !c) return method === "POST" ? memoryUpsert(request) : METHOD_NOT_ALLOWED();
+    if (a === "memory" && b === "recall" && !c) {
+      return method === "POST" ? memoryRecall.POST(request) : METHOD_NOT_ALLOWED();
+    }
+    if (a === "memories" && b === "file" && method === "GET") return memory.FILE(request);    if (a === "memories" && b === "visibility" && (method === "GET" || method === "PATCH")) return memory.VISIBILITY(request);
     if (a === "memories" && !b) {
       if (method === "GET") return memory.GET(request);
       if (method === "POST") return memory.POST(request);

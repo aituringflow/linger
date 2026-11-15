@@ -22,7 +22,8 @@
     "./styles.css": "./src/ui/style/styles.css",
     "./ota": "./src/server/ota-client.ts",
     "./ota/server": "./src/server/ota-server.ts",
-    "./local-chat": "./src/server/local-chat-store.ts"
+    "./local-chat": "./src/server/local-chat-store.ts",
+    "./memory": "./src/server/memory/index.ts"
   },
   "scripts": {
     "login": "node --import tsx src/server/auth-cli.ts login",

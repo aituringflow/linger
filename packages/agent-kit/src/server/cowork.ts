@@ -838,7 +838,7 @@ export function createCoworkHandlers(agent: AgentRoute) {
           COALESCE(NULLIF(u.name,''),u.user_code,NULLIF(sm.name,''),'成员') AS name
         FROM agent_session_members sm
         LEFT JOIN LATERAL (
-          SELECT provider,union_id,name FROM users u
+          SELECT provider,union_id,name,user_code FROM users u
           WHERE u.provider=sm.provider AND (u.open_id=sm.contact_id OR u.user_code=sm.contact_id OR (u.provider='builtin' AND u.union_id=sm.contact_id))
           LIMIT 1
         ) u ON true
@@ -1583,14 +1583,16 @@ ${fastIsAiMessage
       pool!.query("SELECT title, cowork_avatar, cowork_mode, cowork_model, cowork_codex_model, cowork_reply_policy, cowork_fast_prompt FROM agent_sessions WHERE id=$1", [sessionId]),
       pool!.query("SELECT COALESCE(NULLIF(name,''),user_code) AS name,avatar FROM users WHERE provider || ':' || union_id=$1 LIMIT 1", [session!.userId]),
       pool!.query(`WITH people AS (
-        SELECT s.user_id AS user_sub, COALESCE(NULLIF(u.name,''),u.user_code,'发起人') AS name, COALESCE(u.avatar,'') AS avatar, s.created_at AS added_at
-          FROM agent_sessions s LEFT JOIN users u ON u.provider || ':' || u.union_id=s.user_id WHERE s.id=$1
+        SELECT s.user_id AS user_sub, COALESCE(NULLIF(u.name,''),u.user_code,'发起人') AS name, COALESCE(u.avatar,'') AS avatar, s.created_at AS added_at,
+          NULLIF(u.name,'') AS memory_name, NULLIF(b.username,'') AS username
+          FROM agent_sessions s LEFT JOIN users u ON u.provider || ':' || u.union_id=s.user_id LEFT JOIN builtin_credentials b ON b.user_id=u.id WHERE s.id=$1
         UNION
         SELECT COALESCE(u.provider || ':' || u.union_id,sm.provider || ':' || sm.contact_id),
-          COALESCE(NULLIF(u.name,''),u.user_code,sm.name),COALESCE(u.avatar,sm.avatar),sm.added_at
+          COALESCE(NULLIF(u.name,''),u.user_code,sm.name),COALESCE(u.avatar,sm.avatar),sm.added_at,
+          COALESCE(NULLIF(sm.name,''),NULLIF(u.name,'')),NULLIF(b.username,'')
           FROM agent_session_members sm LEFT JOIN users u ON u.provider=sm.provider
-            AND (u.open_id=sm.contact_id OR u.user_code=sm.contact_id OR (u.provider='builtin' AND u.union_id=sm.contact_id)) WHERE sm.session_id=$1
-      ) SELECT DISTINCT ON (p.user_sub) p.user_sub AS "userSub",p.name,p.avatar,p.added_at AS "addedAt",COALESCE(r.last_read_message_id,0)::text AS "throughId"
+            AND (u.open_id=sm.contact_id OR u.user_code=sm.contact_id OR (u.provider='builtin' AND u.union_id=sm.contact_id)) LEFT JOIN builtin_credentials b ON b.user_id=u.id WHERE sm.session_id=$1
+      ) SELECT DISTINCT ON (p.user_sub) p.user_sub AS "userSub",p.name,p.memory_name AS "memoryName",p.username,p.avatar,p.added_at AS "addedAt",COALESCE(r.last_read_message_id,0)::text AS "throughId"
         FROM people p LEFT JOIN agent_session_reads r ON r.session_id=$1 AND r.user_sub=p.user_sub ORDER BY p.user_sub,p.added_at`,[sessionId]),
     ]);
     const rawAfter = Number(new URL(request.url).searchParams.get("after") ?? 0);
@@ -2093,7 +2095,7 @@ ${fastIsAiMessage
             COALESCE(NULLIF(u.name,''),u.user_code,NULLIF(sm.name,''),'成员') AS name,u.email,u.mobile,u.dept_name
           FROM agent_session_members sm
           LEFT JOIN LATERAL (
-            SELECT provider,union_id,name,email,mobile,dept_name FROM users u
+            SELECT provider,union_id,name,user_code,email,mobile,dept_name FROM users u
             WHERE u.provider=sm.provider AND (u.open_id=sm.contact_id OR u.user_code=sm.contact_id OR (u.provider='builtin' AND u.union_id=sm.contact_id))
             LIMIT 1
           ) u ON true
@@ -2174,7 +2176,7 @@ ${fastIsAiMessage
       slog(sessionId, "cowork.context", { runId, attachments: attachmentsForRun.map(item => item.name), images: groupImages.length, members: publicMembers }, "info", 1000000);
       // 快思考禁用 thinking、工具及 MCP，只读固定消息快照。
       // 原始决策流仅推送到右栏并持久化；正式消息仍按 reply/delegate 决策处理。
-      const fastSystem = `你是群聊中的快思考分流器，${managementRequest ? "本轮可以使用专属的群 AI 管理工具" : "不使用工具"}，不输出思考过程。只输出一个 JSON 对象，格式为 {"decision":"silent|reply|review|delegate|react","answer":"","messageId":0,"emoji":""}。可以用 reply 的 answer 只发送一个表情；也可以选 react 给可见的具体消息添加表情，此时填写其 messageId 和 emoji。可用表情：${GROUP_EMOJIS.join(" ")}。表情回应事件也会作为群聊上下文供你判断，通常无须再回应单纯的表情；避免循环回应。拿不准消息意图、附件是否可见或自己是否该发言时选 review，进入第二轮“让我想想”，不要直接猜测并答复。` +
+      const fastSystem = `你是群聊中的快思考分流器，${managementRequest ? "本轮可以使用专属的群 AI 管理工具" : "不使用工具"}，不输出思考过程。个人记忆由每个成员自己的客户端私下处理，本群助手无法验证其保存结果，不能声称已保存个人记忆；明确请求保存时请如实说明无法在群内确认。只输出一个 JSON 对象，格式为 {"decision":"silent|reply|review|delegate|react","answer":"","messageId":0,"emoji":""}。可以用 reply 的 answer 只发送一个表情；也可以选 react 给可见的具体消息添加表情，此时填写其 messageId 和 emoji。可用表情：${GROUP_EMOJIS.join(" ")}。表情回应事件也会作为群聊上下文供你判断，通常无须再回应单纯的表情；避免循环回应。拿不准消息意图、附件是否可见或自己是否该发言时选 review，进入第二轮“让我想想”，不要直接猜测并答复。` +
         (managementRequest ? "本轮是管理员请求管理群 AI。你已有 group-agents 工具，必须先调用 list_agents 核对，再调用 create_agent、edit_agent 或 delete_agent 完成操作。如果要求创建的同名 AI 已存在，仍可调用 create_agent，由工具返回已存在的结果。工具成功后才可选 reply；工具不可用、失败或没有权限时选 delegate。历史里声称已创建的文字不是操作依据。" : "") +
         (customPrompt ? "" : `若某成员明确 @${title} 或 @所有人 请求你发言，选 reply 或 delegate 时 answer 开头要 @ 该成员名字（如 @张三 ），名字以群成员名单为准。`) +
         `本 AI 发言规则：${replyPolicy === "proactive" ? "积极参与讨论；有帮助时主动简短回应，但不要打断明显的人与人对话。" : replyPolicy === "mentions_only" ? `只有明确 @${title} 或 @所有人 才允许回答。` : ""}${speakingInstruction.slice(0, 8000)}。` +
@@ -2420,7 +2422,7 @@ ${fastIsAiMessage
         `如果是未被点名的主动发言，最多两句，优先提出一个让群成员决策的问题。` +
         (customPrompt ? "" : `若这轮被某成员明确 @ 或点名请求你发言，答复开头 @ 该成员名字（如 @张三 ），名字以群成员名单为准。`) +
         (mustReply ? `以下尚未回应的消息明确请你发言，必须逐一回应，不能输出 <SILENT>：${directlyRequested.map(row => String(row.content)).join("；").slice(0, 4000)}。` : "") +
-        `群内决定由人做。不要泄露不在本群的资料。\n群成员公开资料与获准共享的记忆：\n${memoryParts.filter(Boolean).join("\n").slice(0, 16000)}` +
+        `群内决定由人做。不要泄露不在本群的资料。个人记忆由各成员自己的客户端私下处理；你不能查看或验证其写入结果，不得声称已经为某人保存了个人记忆。\n群成员公开资料与获准共享的记忆：\n${memoryParts.filter(Boolean).join("\n").slice(0, 16000)}` +
         (hostContext ? `\n\n【宿主能力上下文】\n${hostContext}` : "") +
         (customPrompt ? `\n\n【${title} 的独立提示词，决定最终回复内容与格式】\n${customPrompt.slice(0, 16000)}\n严格按此提示词回复；不要自动添加称呼、解释或其他前后缀。` : "");
       const slowMode = managementRequest ? "codebuddy" : mode;

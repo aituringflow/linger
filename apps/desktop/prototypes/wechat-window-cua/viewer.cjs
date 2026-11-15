@@ -3,6 +3,8 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { selectedVisionModel, modelLabel, askCodex, isCustomModel } = require('./vision-config.cjs');
+let analysisModel = null;
 
 const execFileAsync = promisify(execFile);
 const powershell = path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
@@ -98,6 +100,8 @@ function publish(event, value) {
 }
 
 async function askHy3(instruction, images) {
+  const selected = analysisModel || selectedVisionModel();
+  if (selected.framework === 'codex' || isCustomModel(selected.model)) return askCodex(instruction, images, selected.model, undefined, selected.framework);
   const { query } = await import('@tencent-ai/agent-sdk');
   const userMessage = {
     type: 'user', session_id: '', parent_tool_use_id: null,
@@ -109,7 +113,7 @@ async function askHy3(instruction, images) {
   const prompt = (async function* () { yield userMessage; })();
   let answer = '';
   for await (const msg of query({ prompt, options: {
-    model: 'hy3', allowedTools: [], maxTurns: 1, continue: false,
+    model: selected.model, allowedTools: [], maxTurns: 1, continue: false,
     permissionMode: 'bypassPermissions', thinking: { type: 'disabled' },
     includePartialMessages: false, cwd: app.isPackaged ? app.getPath('userData') : path.resolve(__dirname, '../../../..'),
   } })) {
@@ -117,7 +121,7 @@ async function askHy3(instruction, images) {
       if (block.type === 'text') answer += block.text;
     }
   }
-  if (!answer.trim()) throw new Error('hy3 未返回可显示的摘要');
+  if (!answer.trim()) throw new Error(`${modelLabel(selected)} 未返回可显示的摘要`);
   return answer.trim();
 }
 
@@ -168,13 +172,15 @@ function viewportUnchanged(before, after) {
 }
 function jsonAnswer(answer) {
   const match = answer.match(/```(?:json)?\s*([\s\S]*?)```/) || answer.match(/(\{[\s\S]*\})/);
-  if (!match) throw new Error(`hy3 未返回 JSON：${answer.slice(0, 150)}`);
+  if (!match) throw new Error(`模型未返回 JSON：${answer.slice(0, 150)}`);
   return JSON.parse(match[1]);
 }
 
 async function runUnread() {
   if (busy) return;
   busy = true;
+  analysisModel = selectedVisionModel();
+  publish('model', modelLabel(analysisModel));
   try {
     assertOpen();
     const prepared = docked ? await driver('status', ['-TargetHandle', String(docked.targetHandle)]) : await driver('prepare');
@@ -239,7 +245,7 @@ async function runUnread() {
       screenshots.push(shot);
       publish('image', `data:image/png;base64,${shot}`);
     }
-    publish('phase', 'hy3 正在提取最近 10 条消息并汇总…');
+    publish('phase', `${modelLabel(analysisModel)} 正在提取最近 10 条消息并汇总…`);
     const extracts = [];
     for (let i = 0; i < screenshots.length; i += 4) {
       assertOpen();
@@ -267,7 +273,7 @@ async function initialize() {
     assertOpen();
     fitFrame(prepared.bounds);
     publish('dock-target', { handle: prepared.handle });
-    publish('phase', '就绪 · 点击“分析”读取首个未读会话');
+    publish('phase', '正在嵌入微信窗口…');
   } catch (error) {
     publish('phase', '初始化失败');
     publish('error', error instanceof Error ? error.message : String(error));
@@ -292,6 +298,7 @@ app.whenReady().then(() => {
   win.loadFile(path.join(__dirname, 'viewer.html'), { query: { theme } });
   win.webContents.once('did-finish-load', () => {
     console.log('[wechat-cua] viewer loaded');
+    publish('model', modelLabel());
     readyPromise = initialize();
   });
   win.on('close', (event) => {
@@ -310,11 +317,13 @@ ipcMain.handle('reconnect', () => {
 ipcMain.handle('dock', async (_event, targetHandle, rect) => {
   if (!win || win.isDestroyed() || !Number.isSafeInteger(targetHandle) || !rect || !['x','y','width','height'].every((key) => Number.isFinite(rect[key]))) return;
   try {
+    const initialDock = !docked;
     if (!docked) {
       const parentHandle = win.getNativeWindowHandle().readBigUInt64LE(0).toString();
       docked = await embed('attach', ['-ParentHandle', parentHandle, '-TargetHandle', String(targetHandle)]);
     }
     await positionDock(rect);
+    if (initialDock) publish('phase', '就绪 · 点击“分析”读取首个未读会话');
   } catch (error) {
     if (docked) await undock().catch(() => {});
     const message = error instanceof Error ? error.message : String(error);

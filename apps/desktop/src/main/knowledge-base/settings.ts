@@ -22,6 +22,7 @@ export interface KnowledgeImageModel {
 
 export interface KnowledgeSettings {
   imageModel?: KnowledgeImageModel;
+  memoryImageModel?: KnowledgeImageModel;
   /**
    * 知识库窗口关闭后继续在后台索引。默认开启：
    * 首次导入几万张照片要跑很久，只有开着窗口才索引的话永远跑不完。
@@ -43,14 +44,15 @@ function settingsFile(userDataDir?: string): string {
 }
 
 function normalize(input: unknown): KnowledgeSettings {
-  const raw = (input ?? {}) as { imageModel?: unknown; backgroundIndexing?: unknown };
+  const raw = (input ?? {}) as { imageModel?: unknown; memoryImageModel?: unknown; backgroundIndexing?: unknown };
   const next: KnowledgeSettings = { backgroundIndexing: raw.backgroundIndexing !== false };
-  const candidate = raw.imageModel as { framework?: unknown; model?: unknown } | undefined | null;
-  if (!candidate || typeof candidate !== "object") return next;
-  const framework = candidate.framework;
-  const model = typeof candidate.model === "string" ? candidate.model.trim() : "";
-  if ((framework !== "codebuddy" && framework !== "codex") || !model) return next;
-  next.imageModel = { framework, model };
+  for (const key of ["imageModel", "memoryImageModel"] as const) {
+    const candidate = raw[key] as { framework?: unknown; model?: unknown } | undefined | null;
+    if (!candidate || typeof candidate !== "object") continue;
+    const framework = candidate.framework;
+    const model = typeof candidate.model === "string" ? candidate.model.trim() : "";
+    if ((framework === "codebuddy" || framework === "codex") && model) next[key] = { framework, model };
+  }
   return next;
 }
 
@@ -66,7 +68,7 @@ export function readKnowledgeSettings(userDataDir?: string): KnowledgeSettings {
 /** 原子写入；`patch.imageModel = null` 表示清除选择（回退默认模型）。 */
 export function writeKnowledgeSettings(patch: unknown, userDataDir?: string): KnowledgeSettings {
   const current = readKnowledgeSettings(userDataDir);
-  const incoming = (patch ?? {}) as { imageModel?: unknown; backgroundIndexing?: unknown };
+  const incoming = (patch ?? {}) as { imageModel?: unknown; memoryImageModel?: unknown; backgroundIndexing?: unknown };
   const next: KnowledgeSettings = { ...current };
   if ("imageModel" in incoming) {
     if (incoming.imageModel === null) delete next.imageModel;
@@ -74,6 +76,10 @@ export function writeKnowledgeSettings(patch: unknown, userDataDir?: string): Kn
       const normalized = normalize({ imageModel: incoming.imageModel });
       if (normalized.imageModel) next.imageModel = normalized.imageModel;
     }
+  }
+  if ("memoryImageModel" in incoming) {
+    if (incoming.memoryImageModel === null) delete next.memoryImageModel;
+    else { const parsed = normalize({ memoryImageModel: incoming.memoryImageModel }); if (parsed.memoryImageModel) next.memoryImageModel = parsed.memoryImageModel; }
   }
   if ("backgroundIndexing" in incoming) next.backgroundIndexing = incoming.backgroundIndexing !== false;
   const file = settingsFile(userDataDir);

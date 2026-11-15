@@ -22,6 +22,7 @@ using System.Runtime.InteropServices;
 public static class NativeEmbed {
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
   [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
   [DllImport("user32.dll", EntryPoint="GetWindowLongPtrW", SetLastError=true)] public static extern IntPtr GetWindowLongPtr(IntPtr h, int index);
   [DllImport("user32.dll", EntryPoint="SetWindowLongPtrW", SetLastError=true)] public static extern IntPtr SetWindowLongPtr(IntPtr h, int index, IntPtr value);
@@ -53,11 +54,16 @@ if ($Action -eq 'attach') {
     ConvertTo-Json -Compress
 }
 if ($Action -eq 'position') {
-  if (-not [NativeEmbed]::SetWindowPos($target, [IntPtr]::Zero, $X, $Y, $Width, $Height, 0x0034)) {
+  # HWND_TOP places the native child above Chromium's rendering child. The old
+  # SWP_NOZORDER left WeChat behind the opaque web surface (a blank preview).
+  # SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_SHOWWINDOW keeps focus in the shell,
+  # applies WS_CHILD and makes a previously hidden target visible.
+  if (-not [NativeEmbed]::SetWindowPos($target, [IntPtr]::Zero, $X, $Y, $Width, $Height, 0x0070)) {
     throw "定位嵌入窗口失败：$([Runtime.InteropServices.Marshal]::GetLastWin32Error())"
   }
   $actual = New-Object NativeEmbed+RECT
-  [void][NativeEmbed]::GetWindowRect($target, [ref]$actual)
+  if (-not [NativeEmbed]::GetWindowRect($target, [ref]$actual)) { throw '无法读取嵌入窗口的尺寸。' }
+  if (-not [NativeEmbed]::IsWindowVisible($target) -or ($actual.Right - $actual.Left) -le 0 -or ($actual.Bottom - $actual.Top) -le 0) { throw '微信窗口未显示，请重新连接。' }
   @{ x=$X; y=$Y; width=$Width; height=$Height; actualWidth=$actual.Right-$actual.Left; actualHeight=$actual.Bottom-$actual.Top } | ConvertTo-Json -Compress
 }
 if ($Action -eq 'status') {

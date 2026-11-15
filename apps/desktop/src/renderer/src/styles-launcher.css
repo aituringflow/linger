@@ -172,6 +172,7 @@
 /* 右侧内容区：高度按内容撑开，但给个下限 —— 切分类时窗口不会忽大忽小。 */
 .launcher-settings-body {
   flex: 1;
+  user-select: text;
   min-width: 0;
   min-height: 560px;
   padding: 18px 20px 20px;
@@ -182,6 +183,30 @@
    用「相邻兄弟」而不是「分组 + 分组」：算力页的第一块是自带的 .compute-providers，不是分组。 */
 .launcher-settings-body > * + * { margin-top: 24px; }
 .launcher-settings-rows .appearance-setting-row:first-child { margin-top: 10px; padding-top: 0; border-top: 0; }
+
+/* 记忆分类：说明文字与模型状态行。
+   说明比设置行低一档（弱化、略小），避免和开关标签抢注意力。 */
+.memory-hint {
+  margin: 6px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.memory-model-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.memory-model-label { color: var(--ink-soft); }
+.memory-model-state { color: var(--ink-soft); }
+.memory-model-state.is-ready { color: #2a9d74; }
+/* 状态文字吃掉剩余宽度，下载按钮才不会被长错误信息挤到换行。 */
+.memory-model-row .appearance-action-button { margin-left: auto; }
+.memory-model-state { flex: 1; min-width: 0; }
 
 /* 自定义模型入口的「管理」按钮（算力分类内），与开关行同款视觉。 */
 .appearance-action-button {
@@ -710,6 +735,49 @@
 /* kit 的左栏 inner 是硬编码 280px，现在面板多了 1px 右边框（border-box），
    会溢出被 overflow:hidden 裁掉；改成 100% 跟右栏 .chat-right-inner 的做法一致。 */
 .chat-shell.is-launcher .chat-pane-left .chat-sidebar-inner { width: 100%; }
+
+/* ---- launcher 会话列表：黑白灰中性态（不套品牌蓝 / 皮肤色）----
+   选中、悬停、置顶、兜底头像、@ 标签、拖拽指示线全部用 --ink 透明度叠加：
+   --ink 在浅色 / 深色 / wp1–wp6 每套皮肤里都有定义，因此 8 套外观自动适配，
+   不需要再为每套皮肤单独写一遍颜色。强度层级：基础 < 悬停 < 选中 < 置顶选中。 */
+.chat-shell.is-launcher .chat-sidebar-item.is-active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.chat-shell.is-launcher .chat-sidebar-item.is-active .chat-sidebar-item-title { color: var(--ink); }
+.chat-shell.is-launcher .chat-sidebar-item.is-web-pinned { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.chat-shell.is-launcher .chat-sidebar-item.is-web-pinned.is-active { background: color-mix(in srgb, var(--ink) 13%, transparent); }
+/* 兜底姓名头像：原品牌蓝底蓝字 → 中性灰底墨字 */
+.chat-shell.is-launcher .chat-sidebar-session-avatar.avatar-fallback { background: var(--hover-strong); color: var(--ink); }
+/* [有人@了你] 标签：原品牌蓝 → 墨色加粗，仍比消息预览（--ink-soft）突出 */
+.chat-shell.is-launcher .chat-sidebar-mention-label { color: var(--ink); }
+/* 拖拽插入位置：蓝色横线 / 空心圆 → 中性墨色 */
+.chat-shell.is-launcher .chat-sidebar-item.is-drop-before::before,
+.chat-shell.is-launcher .chat-sidebar-item.is-drop-after::before { background: var(--ink); }
+.chat-shell.is-launcher .chat-sidebar-item.is-drop-before::after,
+.chat-shell.is-launcher .chat-sidebar-item.is-drop-after::after { border-color: var(--ink); }
+/* 待确认胶囊：原品牌蓝 → 中性灰底墨字，圆点用次级灰 */
+.chat-shell.is-launcher .chat-sidebar-item-pending {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  border-color: var(--line);
+}
+.chat-shell.is-launcher .chat-sidebar-item-pending-dot { background: var(--ink-soft); }
+/* 重命名输入框聚焦边框：原品牌蓝 → 中性墨色 */
+.chat-shell.is-launcher .chat-sidebar-rename-input:focus { border-color: var(--ink-soft); }
+
+@media (hover: hover) and (pointer: fine) {
+  .chat-shell.is-launcher .chat-sidebar-item:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  .chat-shell.is-launcher .chat-sidebar-item.is-web-pinned:hover { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+  .chat-shell.is-launcher .chat-sidebar-item.is-active:hover { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+  .chat-shell.is-launcher .chat-sidebar-item.is-web-pinned.is-active:hover { background: color-mix(in srgb, var(--ink) 15%, transparent); }
+}
+
+/* Ctrl(+Shift)+Tab 快速切换浮层：portal 到 body，脱离上面的 .chat-shell 作用域，
+   选中行 / 悬停同样走中性灰（--active / --hover 是 html 级主题变量，portal 内可读）。 */
+.session-switcher-list .chat-sidebar-item.is-active { background: var(--active); }
+.session-switcher-list .chat-sidebar-item.is-active .chat-sidebar-item-title { color: var(--ink); }
+@media (hover: hover) and (pointer: fine) {
+  .session-switcher-list .chat-sidebar-item:hover { background: var(--hover); }
+  .session-switcher-list .chat-sidebar-item.is-active:hover { background: var(--active); }
+}
 
 /* 输入区几何统一：新建任务空态（无消息）与存量会话共用同一个宽度公式，
    否则从侧栏切进已有对话时输入框会突然变宽、下沉一截。
@@ -1457,3 +1525,21 @@
 .dsh-settings p { color: var(--ink-soft); }
 .dsh-settings div { display: flex; justify-content: flex-end; gap: 8px; }
 .dsh-settings button { padding: 5px 10px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--ink); cursor: pointer; }
+
+/* Memory image model: compact themed framework and model pickers. */
+.memory-select-grid { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(0, 1.4fr); gap: 12px; margin-top: 14px; }
+.memory-select { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.memory-select-label { color: var(--ink-soft); font-size: 12px; font-weight: 500; }
+.memory-select-trigger { width: 100%; min-width: 0; height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.memory-select-trigger > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memory-select-trigger:hover:not(:disabled), .memory-select-trigger[aria-expanded="true"] { border-color: var(--ink-soft); }
+.memory-select-trigger:focus-visible, .memory-select-option:focus-visible { outline: 2px solid var(--accent, var(--ink)); outline-offset: 1px; }
+.memory-select-trigger:disabled { opacity: .55; cursor: default; }
+.memory-select-chevron { display: block; flex: 0 0 16px; width: 16px; height: 16px; color: var(--ink-soft); }
+.memory-select-menu { z-index: 10000; box-sizing: border-box; overflow-y: auto; padding: 4px; border: 1px solid var(--line); border-radius: 9px; background: var(--focus-body-bg, var(--panel-bg)); box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+.memory-select-option { width: 100%; display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.memory-select-option > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memory-select-option:hover:not(:disabled) { background: var(--hover); }
+.memory-select-option.is-selected { background: var(--surface-strong); font-weight: 600; }
+.memory-select-option:disabled { opacity: .45; cursor: default; }
+@media (max-width: 480px) { .memory-select-grid { grid-template-columns: 1fr; } }

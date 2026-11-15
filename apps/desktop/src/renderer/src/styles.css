@@ -358,7 +358,7 @@ button {
   pointer-events: auto;
   display: flex;
   align-items: flex-end;
-  gap: 5px;
+  gap: 10px;
   /* 图标 60（Dock.tsx 的 DOCK_ICON_SIZE）+ 上下 padding 8 + 1px 边框 = 胶囊 78 高 */
   padding: 8px;
   border-radius: 999px;
@@ -504,10 +504,6 @@ button {
   mask-image: radial-gradient(circle at center, #000 0%, #000 76%, rgba(0, 0, 0, 0.88) 88%, transparent 100%);
   -webkit-mask-image: radial-gradient(circle at center, #000 0%, #000 76%, rgba(0, 0, 0, 0.88) 88%, transparent 100%);
 }
-/* 次级图标整体降饱和、略压亮度，让 Home（唯一满血金属金）成为视觉主角 */
-.dock-domain-item .icon-wrap {
-  filter: saturate(0.56) brightness(0.9);
-}
 
 /* 但「设置」是透明底的剪影图形（齿轮的齿尖就是图形边界，外面本来全透明），
    不能套这层圆形渐隐：齿尖会被抹成半透明，轮廓发虚、还裹上一层灰边。
@@ -521,8 +517,7 @@ button {
   overflow: visible;
   border-radius: 0;
 }
-/* 数域入口同样是圆形图标（Dock 上所有图标都圆），只要和数域一样的边缘渐隐。
-   它不参与「次级图标降饱和」：入口和 Home 一样是主入口。 */
+/* 数域入口同样是圆形图标（Dock 上所有图标都圆），只要和数域一样的边缘渐隐。 */
 .dock-domain-entry .icon-wrap,
 .dock-drag-ghost[data-domain="domains"] .icon-wrap {
   mask-image: radial-gradient(circle at center, #000 0%, #000 76%, rgba(0, 0, 0, 0.88) 88%, transparent 100%);
@@ -1818,6 +1813,9 @@ button {
   --ink-soft: #66676a;
   --hover: rgba(30, 30, 32, .07);
   --send-bg: #343538;
+  /* 浅色下发送按钮 hover 必须仍是深灰：否则会继承 .quick-input 基类的浅灰 --send-bg-hover，
+     配白箭头（--send-ink: #fff）在浅卡片上几乎看不见。 */
+  --send-bg-hover: #48494d;
   --send-ink: #fff;
   --surface-soft: rgba(35, 35, 38, .04);
   --surface-strong: rgba(35, 35, 38, .08);
@@ -1845,6 +1843,7 @@ button {
   --ink-soft: #b6b6ba;
   --hover: rgba(255, 255, 255, .08);
   --send-bg: #e0e0e1;
+  --send-bg-hover: #ffffff;
   --send-ink: #222326;
   --surface-soft: rgba(255, 255, 255, .06);
   --surface-strong: rgba(255, 255, 255, .12);
@@ -2500,10 +2499,10 @@ button {
 /* 好友邀请角标：压在图标右上角、**允许探出胶囊外**（macOS 那种角标）。
    之前被裁，是因为 `.dock` 用 overflow 做横向滚动，999px 圆角会把角落裁掉一块；
    现在 `.dock` 默认 overflow: visible（只有图标多到放不下时才退回滚动），角标可以正常外露。
-   z-index 抬到 icon-wrap 之上：图标容器带 filter（自成层叠上下文），相邻 Dock 项也会互相压，
-   角标必须明确盖过它们；Dock 自身是 z-index:1000 的层叠上下文，角标作为它的后代天然画在
+   z-index 抬到 icon-wrap 之上：相邻 Dock 项也会互相压，角标必须明确盖过它们；Dock 自身是 z-index:1000 的层叠上下文，角标作为它的后代天然画在
    Dock 背景/边框之上。 */
-/* Update indicator mirrors the unread badge. */
+/* Update indicator mirrors the unread badge. 黑白灰中性角标：深色语境浅灰底深字，
+   浅色语境深灰底白字（跟随 data-theme，8 套主题自动适配），不再用品牌蓝。 */
 .dock-update-badge {
   position: absolute;
   left: -3px;
@@ -2515,16 +2514,17 @@ button {
   padding: 3px;
   border: 0;
   border-radius: 50%;
-  background: #2876c7;
-  color: #fff;
+  background: #e8e8ea;
+  color: #1a1a1a;
   box-shadow: 0 1px 3px rgba(0, 0, 0, .4);
   cursor: pointer;
   z-index: 5;
   /* 角标只负责引导：点击打开外观菜单（右键菜单同款），
      真正安装仍在菜单「关于」行里确认，避免一次误点就重启应用。 */
 }
+:root[data-theme="light"] .dock-update-badge { background: #343538; color: #fff; }
 .dock-update-badge svg { width: 100%; height: 100%; }
-.dock-update-badge:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+.dock-update-badge:focus-visible { outline: 2px solid var(--bg); outline-offset: 2px; }
 .dock-update-badge:disabled { cursor: wait; opacity: .75; }
 
 .contacts-dock-badge {

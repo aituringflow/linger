@@ -6,6 +6,7 @@ const fsp = require('node:fs/promises');
 const os = require('node:os');
 const readline = require('node:readline');
 const { analyzeUnread, draftFrameState } = require('./mac-analysis.cjs');
+const { modelLabel } = require('./vision-config.cjs');
 const resourcePath = name => path.join(app.isPackaged ? process.resourcesPath : path.resolve(__dirname, '../../resources'), name);
 
 let win;
@@ -472,7 +473,7 @@ app.whenReady().then(() => {
   win.on('resize', schedulePosition);
   win.on('close', event => { event.preventDefault(); void closeWindow(); });
   win.loadFile(path.join(__dirname, 'viewer.html'), { query: { theme, platform: 'mac' } });
-  win.webContents.once('did-finish-load', () => void initialize());
+  win.webContents.once('did-finish-load', () => { publish('model', modelLabel()); void initialize(); });
 });
 ipcMain.handle('dock', async (_event, target, rect) => {
   if (!attached || target !== 1 || !rect || !['x', 'y', 'width', 'height'].every(key => Number.isFinite(rect[key])) || rect.width < 100 || rect.height < 100) return;

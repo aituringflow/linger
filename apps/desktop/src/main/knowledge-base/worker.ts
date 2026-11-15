@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { OnnxEmbeddingProvider } from "./onnx-embedding.js";
+import { ModelDownloader, type DownloadProgress } from "./model-downloader.js";
 import { setEmbeddingProvider } from "./embedding.js";
 
 const port = parentPort!;
@@ -19,6 +20,67 @@ const workers = new Map<string, Worker>();
 // 主 worker 里加载唯一一份 ONNX 模型，所有 runtime worker 共享
 const mainEmbedding = new OnnxEmbeddingProvider(workerData.userDataDir);
 setEmbeddingProvider(mainEmbedding);
+
+/**
+ * 文本向量化的模型状态与下载，由 manager 自己管。
+ *
+ * 不能复用 runtime 那一套：runtime 是按知识库实例创建的，没有知识库时它根本不存在，
+ * 而长期记忆的召回跟知识库无关——用户可能从没建过库。这里独立维护一份，
+ * 目录是同一个，下载逻辑幂等。
+ */
+const memoryDownloader = new ModelDownloader(workerData.userDataDir);
+type MemoryModelState = {
+  id: "embeddinggemma2";
+  phase: "checking" | "downloading" | "done" | "error";
+  file: string;
+  percent: number;
+  downloadedMB: number;
+  totalMB: number;
+  error?: string;
+};
+let memoryModelState: MemoryModelState = {
+  id: "embeddinggemma2",
+  phase: memoryDownloader.isTextModelReady("embeddinggemma2") ? "done" : "checking",
+  file: "",
+  percent: memoryDownloader.isTextModelReady("embeddinggemma2") ? 100 : 0,
+  downloadedMB: 0,
+  totalMB: 0,
+};
+let memoryDownload: Promise<void> | null = null;
+function ensureMemoryModel(): Promise<void> {
+  if (memoryDownloader.isTextModelReady("embeddinggemma2")) {
+    if (memoryModelState.phase !== "done") {
+      memoryModelState = { ...memoryModelState, phase: "done", percent: 100 };
+      port.postMessage({ modelState: memoryModelState });
+    }
+    return Promise.resolve();
+  }
+  if (memoryDownload) return memoryDownload;
+  memoryModelState = { ...memoryModelState, phase: "downloading", percent: 0 };
+  port.postMessage({ modelState: memoryModelState });
+  const promise = memoryDownloader.downloadModel("embeddinggemma2", (p: DownloadProgress) => {
+    memoryModelState = {
+      ...memoryModelState,
+      phase: p.phase === "error" ? "error" : "downloading",
+      file: p.file,
+      percent: p.percent,
+      downloadedMB: p.downloadedMB,
+      totalMB: p.totalMB,
+      error: p.error,
+    };
+    port.postMessage({ modelState: memoryModelState });
+  }).then(() => {
+    memoryModelState = { ...memoryModelState, phase: "done", file: "", percent: 100 };
+    port.postMessage({ modelState: memoryModelState });
+  }).catch((error) => {
+    memoryModelState = { ...memoryModelState, phase: "error", error: error instanceof Error ? error.message : String(error) };
+    port.postMessage({ modelState: memoryModelState });
+    throw error;
+  }).finally(() => { memoryDownload = null; });
+  memoryDownload = promise;
+  return promise;
+}
+
 function runtime(id: string) {
   let worker = workers.get(id);
   if (!worker) {
@@ -57,6 +119,29 @@ port.on("message", async message => {
       const texts = args[0] as string[];
       const vectors = await mainEmbedding.embed(texts);
       result = vectors.map((v) => Array.from(v));
+    } else if (method === "embedMemoryDocument") {
+      await ensureMemoryModel();
+      result = Array.from((await mainEmbedding.embed([String(args[0] ?? "")]))[0]);
+    } else if (method === "embedText") {
+      // 长期记忆的查询向量：与知识库无关，没有库也要能用。顺带确保模型就位。
+      await ensureMemoryModel();
+      result = Array.from(await mainEmbedding.embedOne(String(args[0] ?? "")));
+    } else if (method === "warmEmbedding") {
+      // 只把模型加载到内存，不推理：记忆召回有超时预算，冷启动不能算在它头上。
+      await ensureMemoryModel();
+      result = await mainEmbedding.warm();
+    } else if (method === "getModelStatus") {
+      // 有知识库时以 runtime 的状态为准（它还会触发索引恢复），否则用 manager 自己的。
+      result = selected
+        ? await new Promise((resolve, reject) => { const requestId = internalId--; pending.set(requestId, { resolve, reject }); runtime(selected).postMessage({ id: requestId, method: "getModelStatus", args: [] }); })
+        : memoryModelState;
+    } else if (method === "downloadModel") {
+      if (selected) {
+        result = await new Promise((resolve, reject) => { const requestId = internalId--; pending.set(requestId, { resolve, reject }); runtime(selected).postMessage({ id: requestId, method: "downloadModel", args: [] }); });
+      } else {
+        void ensureMemoryModel().catch(() => {});
+        result = memoryModelState;
+      }
     } else if (method === "searchEnabled") {
       const results = [];
       for (const library of libraries.filter(item => item.enabled)) {

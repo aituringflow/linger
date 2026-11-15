@@ -53,6 +53,17 @@ export class OnnxEmbeddingProvider implements EmbeddingProvider {
            fs.existsSync(path.join(this.modelDir, TOKENIZER_FILE));
   }
 
+  /**
+   * 预热：把 ONNX session 建起来但不推理。
+   *
+   * 建的这几百毫秒到几秒的代价必须挪到"用户还没提问"的时候付。
+   * 调用方如果在真实的请求链路上等这次加载，会让第一次请求明显变慢——
+   * 长期记忆的召回有时间预算，等不起这个冷启动。
+   */
+  async warm(): Promise<boolean> {
+    return this.init();
+  }
+
   /** 加载 onnxruntime-node；平台没有原生绑定时给出可读错误，而不是 "Cannot find module"。 */
   private async ort(): Promise<OrtModule> {
     try {

@@ -22,3 +22,11 @@ function Select-WechatCandidate([object[]]$Candidates) {
   }
   throw '微信已经运行，但未找到聊天窗口。请从 Windows 系统托盘打开已登录的微信聊天窗口，然后点击“重新连接”；不会启动新的微信。'
 }
+
+# Only recheck a single minimized candidate; never guess between windows.
+function Select-WechatRestoreCandidate([object[]]$Candidates) {
+  if ($Candidates.Count -ne 1) { return $null }
+  $candidate = $Candidates[0]
+  if ($candidate.kind -eq 'unknown' -and $candidate.minimized) { return $candidate }
+  return $null
+}

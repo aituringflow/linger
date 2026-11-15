@@ -55,6 +55,21 @@ const MODEL_FILES: Record<ModelName, Omit<ModelFileInfo, "dest">[]> = {
   embeddinggemma2: EMBEDDING_GEMMA2_FILES,
 };
 
+/**
+ * 纯文本推理需要的最小文件集。
+ *
+ * 整个模型还带视觉与音频编码器（合计五百多 MB），但算一句查询向量用不到它们。
+ * 长期记忆只做文本召回，判定"能不能用"时不能要求视觉/音频权重也在场，
+ * 否则一个只装了文本部分的环境会被判成"模型未下载"，功能直接不可用。
+ */
+const TEXT_FILES = new Set([
+  "model_quantized.onnx",
+  "model_quantized.onnx_data",
+  "tokenizer.json",
+  "tokenizer_config.json",
+  "config.json",
+]);
+
 export class ModelDownloader {
   private downloads = new Map<string, Promise<void>>();
 
@@ -68,6 +83,12 @@ export class ModelDownloader {
   /** 检查模型是否已完整下载 */
   isModelReady(modelName: ModelName): boolean {
     return this.getModelInfo(modelName).files.every((file) => file.valid);
+  }
+
+  /** 文本部分是否可用（不含视觉/音频权重）；长期记忆只需要这些。 */
+  isTextModelReady(modelName: ModelName): boolean {
+    const files = this.getModelInfo(modelName).files.filter((file) => TEXT_FILES.has(file.name));
+    return files.length > 0 && files.every((file) => file.valid);
   }
 
   getModelInfo(modelName: ModelName) {

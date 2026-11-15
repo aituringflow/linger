@@ -63,6 +63,8 @@ const api: LauncherApi = {
   getDomainTicket: () => ipcRenderer.invoke("launcher:domain-ticket") as Promise<string | null>,
   contactsApi: (method, path, body) => ipcRenderer.invoke("launcher:contacts-api", method, path, body) as ReturnType<LauncherApi["contactsApi"]>,
   webChatApi: (method, path, body) => ipcRenderer.invoke("launcher:web-chat-api", method, path, body) as ReturnType<LauncherApi["webChatApi"]>,
+  memoryRecall: (query) => ipcRenderer.invoke("launcher:memory-recall", query) as ReturnType<LauncherApi["memoryRecall"]>,
+  observeGroupMemory: (input) => ipcRenderer.invoke("launcher:memory-observe-group", input),
   openLogin: (theme) => ipcRenderer.invoke("launcher:open-login", theme) as ReturnType<LauncherApi["openLogin"]>,
   onWebSessionChanged: (listener) => {
     const handler = () => listener();
@@ -177,6 +179,7 @@ const api: LauncherApi = {
     openModelFolder: (model) => ipcRenderer.invoke("knowledge:openModelFolder", model),
     getModelStatus: (model) => ipcRenderer.invoke("knowledge:getModelStatus", model),
     downloadModel: (model) => ipcRenderer.invoke("knowledge:downloadModel", model),
+    embedText: (text: string) => ipcRenderer.invoke("knowledge:embedText", text) as Promise<number[]>,
     onModelStatus: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, state: import("../shared/types").KnowledgeModelStatus) => listener(state);
       ipcRenderer.on("knowledge:modelState", handler);
@@ -190,6 +193,8 @@ const api: LauncherApi = {
     getSettings: () => ipcRenderer.invoke("knowledge:settings:get") as Promise<import("../shared/types").KnowledgeSettings>,
     saveSettings: (patch) => ipcRenderer.invoke("knowledge:settings:save", patch) as Promise<import("../shared/types").KnowledgeSettings>,
     listImageModels: () => ipcRenderer.invoke("knowledge:image-models") as Promise<import("../shared/types").KnowledgeFrameworkModels[]>,
+    listFrameworkModels: (framework) => ipcRenderer.invoke("knowledge:framework-models", framework) as Promise<import("../shared/types").KnowledgeFrameworkModels>,
+    listCustomMemoryModels: () => ipcRenderer.invoke("knowledge:custom-memory-models") as Promise<import("../shared/types").KnowledgeImageModelChoice[]>,
     getProgress: () => ipcRenderer.invoke("knowledge:getProgress") as Promise<import("../shared/types").KnowledgeIndexProgress>,
     reindex: () => ipcRenderer.invoke("knowledge:reindex") as Promise<{ ok: boolean }>,
     reindexFile: (fileId: number) => ipcRenderer.invoke("knowledge:reindexFile", fileId) as Promise<{ ok: boolean }>,

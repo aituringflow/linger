@@ -70,7 +70,7 @@ import { lastProcessFallback } from "../chat/processSteps.ts";
 import { copyTextToClipboard } from "../shared/clipboard.ts";
 import { readChatDraft, saveChatDraft, AGENT_OPEN_ARTIFACTS_EVENT, AGENT_OPEN_DIFF_EVENT, COWORK_MESSAGE_REVOKED_EVENT, COWORK_MESSAGE_UPDATE_EVENT } from "../shared/drafts.ts";
 import { ArtifactDiffPanel, type ArtifactChange } from "../components/ArtifactDiff.tsx";
-import { aggregateArtifactChanges } from "../shared/artifactDiffModel.ts";
+import { aggregateArtifactChanges, isVisibleArtifact } from "../shared/artifactDiffModel.ts";
 import { SlowPageSpinner } from "../components/LoadingState.tsx";
 import { applyTheme, readTheme, type ThemeMode } from "../shared/theme.ts";
 import { DesktopHistoryControls } from "../components/DesktopHistoryControls.tsx";
@@ -983,9 +983,9 @@ export default function ChatPanel({ active, views, coworkView, toolbar, showVoic
               onBrowserAnswer={(browserId, answer) => { void submitBrowserAnswer(browserId, answer); }}
               answer={messageBubble}
               afterAnswer={<>
-              {m.role === "assistant" && m.artifacts?.some((a) => a.change === "added" || !a.change) ? (
+              {m.role === "assistant" && m.artifacts?.some((a) => isVisibleArtifact(a) && (a.change === "added" || !a.change)) ? (
                 <div className="artifact-grid">
-                  {m.artifacts.filter((a) => a.change === "added" || !a.change).map((a) => (
+                  {m.artifacts.filter((a) => isVisibleArtifact(a) && (a.change === "added" || !a.change)).map((a) => (
                     <button
                       key={a.id}
                       type="button"
@@ -1019,7 +1019,7 @@ export default function ChatPanel({ active, views, coworkView, toolbar, showVoic
               {!streamingLast && m.role === "assistant" ? (() => {
                 // 消息级：查看产出物 / 查看变更 跟随每条助手消息，仅当该消息真正产生对应内容才出现。
                 // 不再按会话累计、也不再只挂在最后一条——否则无产物的旧答复 / 纯聊天轮次也会冒出两张卡片。
-                const msgArtifacts = m.artifacts || [];
+                const msgArtifacts = (m.artifacts || []).filter(isVisibleArtifact);
                 const addedCount = msgArtifacts.filter((a) => a.change === "added" || !a.change).length;
                 const changeCount = msgArtifacts.filter((a) => a.change === "modified" || a.change === "deleted").length;
                 if (addedCount === 0 && changeCount === 0) return null;

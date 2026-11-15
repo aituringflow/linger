@@ -91,6 +91,7 @@ export const zh = {
   statusRunning: "运行中",
   toolBrowser: "浏览器控制",
   toolKnowledge: "知识库搜索",
+  toolMemorySearch: "搜索记忆",
   toolWeb: "网页搜索",
   toolCommand: "运行命令",
   toolWrite: "写文件",

@@ -239,6 +239,7 @@ type Action =
   | { type: "SET_WATER_PARAMS"; waterParams: Partial<import("../../shared/types").WaterParams> }
   | { type: "SET_SHOW_MODEL"; show: boolean }
   | { type: "SET_SHOW_CONTEXT_USAGE"; show: boolean }
+  | { type: "SET_MEMORY_ENABLED"; enabled: boolean }
   | { type: "SET_SHOW_VOICE_BUTTON"; show: boolean }
   | { type: "SET_RIGHT_CTRL_VOICE"; enabled: boolean }
   | { type: "SET_VOICE_PREVIEW_ONLY"; enabled: boolean }
@@ -617,6 +618,8 @@ function reducer(state: UiState, action: Action): UiState {
       return s ? { ...state, launcher: { ...s, showModel: action.show } } : state;
     case "SET_SHOW_CONTEXT_USAGE":
       return s ? { ...state, launcher: { ...s, showContextUsage: action.show } } : state;
+    case "SET_MEMORY_ENABLED":
+      return s ? { ...state, launcher: { ...s, memoryEnabled: action.enabled } } : state;
     case "SET_SHOW_VOICE_BUTTON":
       return s ? { ...state, launcher: { ...s, showVoiceButton: action.show } } : state;
     case "SET_RIGHT_CTRL_VOICE":
@@ -887,7 +890,20 @@ export function LauncherProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    void loadLauncherModels().then((models) => { if (alive) dispatch(models === null ? { type: "SET_MODELS_FAILED" } : { type: "SET_MODELS", models }); });
+    void loadLauncherModels().then((models) => {
+      if (!alive) return;
+      if (models === null) {
+        // 首次拉取失败（慢网抖动 / 主进程瞬时异常）：3s 后自动重试一次，避免一直停在「加载失败」。
+        setTimeout(() => {
+          if (!alive) return;
+          void reloadLauncherModels().then((retry) => {
+            if (alive && retry !== null) dispatch({ type: "SET_MODELS", models: retry });
+          });
+        }, 3_000);
+      } else {
+        dispatch({ type: "SET_MODELS", models });
+      }
+    });
     void window.launcher.getAgentHost().then(({ url }) => { if (alive) dispatch({ type: "SET_AGENT_HOST", url }); })
       .catch((err) => console.error("[launcher] 加载本地 Agent 服务失败：", err));
     void window.launcher.getWebAuth().then((result) => { if (alive) dispatch({ type: "SET_WEB_AUTH", url: result?.url ?? null }); })

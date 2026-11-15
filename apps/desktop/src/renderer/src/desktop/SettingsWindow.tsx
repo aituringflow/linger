@@ -5,6 +5,7 @@ import { wallpaperSkinId } from "../wallpapers";
 import WindowFrame from "../dock/WindowFrame";
 import AppearanceSettings from "../dock/AppearanceSettings";
 import ComputeProviderSettings from "../dock/ComputeProviderSettings";
+import MemorySettings from "../dock/MemorySettings";
 import { MultiFrameworkSettings, NotificationSettings, PetSettings, PowerSettings, VoiceSettings, DockSettings, ContextUsageSettings } from "../dock/GeneralSettings";
 import { CustomModels } from "@turingflow/agent-kit/ui";
 import { reloadLauncherModels } from "../state";
@@ -14,6 +15,7 @@ const SECTIONS = [
   { id: "appearance", key: "settings.appearance" },
   { id: "language", key: "settings.language" },
   { id: "compute", key: "settings.compute" },
+  { id: "memory", key: "settings.memory" },
   { id: "voice", key: "settings.voice" },
   { id: "other", key: "settings.other" },
 ] as const;
@@ -138,6 +140,9 @@ export default function SettingsWindow({ layer = 101, minimized = false, focused
                 <CustomModels inline />
               </div>
             </>
+          ) : null}
+          {section === "memory" ? (
+            <MemorySettings />
           ) : null}
           {section === "voice" ? (
             <VoiceSettings />

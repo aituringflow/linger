@@ -91,6 +91,7 @@ export const en: Record<ChatTranslationKey, string> = {
   statusRunning: "Running",
   toolBrowser: "Browser control",
   toolKnowledge: "Search knowledge base",
+  toolMemorySearch: "Search memories",
   toolWeb: "Web search",
   toolCommand: "Run command",
   toolWrite: "Write file",

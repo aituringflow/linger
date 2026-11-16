@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
 import type * as React from "react";
-import { createPortal } from "react-dom";
-import { SettingsIcon, EditIcon, DeleteIcon, NavigationChevronIcon, FolderIcon, RefreshIcon } from "@turingflow/agent-kit/ui";
+import { FrameworkModelSelect, modelOptionKey, useFrameworkModelDiscovery, SettingsIcon, EditIcon, DeleteIcon, NavigationChevronIcon, FolderIcon, RefreshIcon } from "@turingflow/agent-kit/ui";
 import { wallpaperSkinId } from "../wallpapers";
 import { localFileUrl } from "../localFile";
 import { useLauncher } from "../state";
 import WindowFrame, { clearSavedWindowGeometry } from "../dock/WindowFrame";
-import type { KnowledgeChunk, KnowledgeFileKind, KnowledgeFileListItem, KnowledgeFileSort, KnowledgeFileStatusFilter, KnowledgeFrameworkModels, KnowledgeImageModel, KnowledgeIndexProgress, KnowledgeModelStatus, KnowledgeModelInfo, KnowledgeSettings, KnowledgeStats, KnowledgeSearchResult } from "../../../shared/types";
+import type { KnowledgeChunk, KnowledgeFileKind, KnowledgeFileListItem, KnowledgeFileSort, KnowledgeFileStatusFilter, KnowledgeFramework, KnowledgeImageModel, KnowledgeIndexProgress, KnowledgeModelStatus, KnowledgeModelInfo, KnowledgeSettings, KnowledgeStats, KnowledgeSearchResult } from "../../../shared/types";
 
 type FileInfo = KnowledgeFileListItem;
 const statusLabel: Record<string, string> = { indexed: "已解析", pending: "等待处理", indexing: "解析中", failed: "失败" };
@@ -220,118 +219,6 @@ function RecallVideo({ result, prepare, getThumbnail, onOpen }: { result: Knowle
   return <VideoPreview filePath={result.filePath} playClipRef={playClipRef} prepare={prepare} onOpen={onOpen} compact posterPath={posterPath} />;
 }
 
-type ModelOptionLike = { id: string; name?: string; custom?: boolean; supportsImages?: boolean };
-
-/** 图片识别模型自绘下拉：原生 <select> 在 Windows 弹出层是系统控件、不读主题，
- *  这里用按钮 + 列表自绘，颜色全部走主题变量，深/浅色自动适配。
- *  菜单通过 Portal 渲染到 body、position:fixed 且向上展开，目的是脱离设置 dialog 的
- *  overflow 裁剪（dialog 设了 overflowY:auto + maxHeight），并盖在 dialog 之上。 */
-function ImageModelPicker({
-  models, currentId, current, disabled, onSelect,
-}: {
-  models: ModelOptionLike[];
-  currentId: string;
-  current: ModelOptionLike | undefined;
-  disabled: boolean;
-  onSelect: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [coords, setCoords] = useState<{ left: number; bottom: number; width: number } | null>(null);
-  // 菜单是 portal 到 document.body，可能继承不到主题变量；打开时直接从 :root 读取实色背景，避免透明
-  const [menuBg, setMenuBg] = useState<string>("");
-
-  const place = useCallback(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    // 向上展开：菜单底边贴在触发按钮顶边上方 6px；宽度与按钮一致
-    setCoords({ left: r.left, bottom: window.innerHeight - r.top + 6, width: r.width });
-    const bg = getComputedStyle(document.documentElement).getPropertyValue("--focus-body-bg").trim();
-    setMenuBg(bg || (document.documentElement.dataset.appearance === "light" ? "#f6f6f5" : "#1a1a1a"));
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    place();
-    const onDown = (e: MouseEvent) => {
-      if (triggerRef.current?.contains(e.target as Node)) return;
-      if (menuRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    // 菜单内部滚动（overflow）不关闭；其它滚动（如设置 dialog 滚动使触发按钮移位）
-    // 则按触发按钮当前位置重新定位菜单，避免 fixed 菜单错位，而不是一刀切关掉。
-    const onScroll = (e: Event) => {
-      if (menuRef.current?.contains(e.target as Node)) return;
-      place();
-    };
-    const onResize = () => place();
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onScroll, true);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onScroll, true);
-    };
-  }, [open, place]);
-
-  const selectedLabel = current?.name || current?.id || "使用默认模型（不指定）";
-  const optionList: ModelOptionLike[] = [{ id: "" }, ...models];
-
-  return (
-    <div className="kb-model-select" style={{ position: "relative" }}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="kb-model-trigger"
-        disabled={disabled}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        style={s.modelTrigger}
-        onClick={() => setOpen(o => !o)}
-      >
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedLabel}</span>
-        <span aria-hidden style={{ flex: "none", marginLeft: 8, opacity: 0.6 }}>▴</span>
-      </button>
-      {open && coords && createPortal(
-        <div
-          ref={menuRef}
-          className="kb-model-menu"
-          role="listbox"
-          style={{ ...s.modelMenu, background: menuBg || "var(--focus-body-bg)", position: "fixed", left: coords.left, bottom: coords.bottom, width: coords.width, top: "auto", zIndex: 10000 }}
-        >
-          {optionList.map(opt => {
-            const isDefault = opt.id === "";
-            const label = isDefault
-              ? "使用默认模型（不指定）"
-              : `${opt.name || opt.id}${opt.custom ? " · 自定义" : ""}${opt.supportsImages === false ? " · 不支持图片" : ""}`;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                role="option"
-                aria-selected={opt.id === currentId}
-                className={`kb-model-option${opt.id === currentId ? " is-selected" : ""}`}
-                disabled={disabled}
-                style={s.modelOption}
-                onClick={() => { setOpen(false); onSelect(opt.id); }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>,
-        document.body,
-      )}
-    </div>
-  );
-}
-
 const FILE_PAGE_SIZE = 100;
 const CHUNK_PAGE_SIZE = 20;
 const FILE_VIEW_KEY = "kb-file-view";
@@ -393,6 +280,7 @@ export default function KnowledgeWindow({ layer = 101, minimized = false, focuse
   const { state, dispatch } = useLauncher();
   const skinId = state.launcher?.wallpaper ? wallpaperSkinId(state.launcher.wallpaper) : "wp1";
   const api = window.launcher.knowledge;
+  const discovery = useFrameworkModelDiscovery();
   const [libraries, setLibraries] = useState<Array<{ id: string; name: string; enabled: boolean }>>([]);
   const [libraryId, setLibraryId] = useState<string | null>(null);
   const [libraryStats, setLibraryStats] = useState<Record<string, KnowledgeStats | null>>({});
@@ -429,13 +317,10 @@ export default function KnowledgeWindow({ layer = 101, minimized = false, focuse
 
   /** 设置界面每次打开都重新问一次：登录/登出后可用模型会变 */
   const loadImageModels = useCallback(async () => {
-    setFrameworks(null);
-    try {
-      const [current, list] = await Promise.all([api.getSettings(), api.listImageModels()]);
-      setKbSettings(current);
-      setFrameworks(list);
-    } catch (e) { setFrameworks([]); setError(String(e)); }
-  }, [api]);
+    discovery?.refresh();
+    try { setKbSettings(await api.getSettings()); }
+    catch (e) { setError(String(e)); }
+  }, [api, discovery?.refresh]);
 
   // ─── 文件浏览器状态 ────────────────────────────────────────
   const [folder, setFolder] = useState<string | null>(null);
@@ -476,7 +361,7 @@ export default function KnowledgeWindow({ layer = 101, minimized = false, focuse
   const [settings, setSettings] = useState(false);
   /** 知识库全局设置（图片识别模型、后台索引）与可选框架/模型 */
   const [kbSettings, setKbSettings] = useState<KnowledgeSettings | null>(null);
-  const [frameworks, setFrameworks] = useState<KnowledgeFrameworkModels[] | null>(null);
+  const frameworks = discovery?.loading ? null : discovery?.frameworks ?? [];
   const [savingImageModel, setSavingImageModel] = useState(false);
   const [savingBackground, setSavingBackground] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1369,27 +1254,9 @@ export default function KnowledgeWindow({ layer = 101, minimized = false, focuse
             const selectedModel = kbSettings?.imageModel?.framework === active.id ? kbSettings.imageModel.model : "";
             const current = active.models.find(m => m.id === selectedModel);
             return <>
-              {usable.length > 1 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {usable.map(f => <button
-                  key={f.id}
-                  type="button"
-                  disabled={savingImageModel}
-                  style={{ ...s.tabBtn, ...(f.id === active.id ? s.tabBtnOn : {}) }}
-                  onClick={() => {
-                    if (f.id === active.id || savingImageModel) return;
-                    // 切框架要有可用模型：优先选一个「没被声明不支持图片」的
-                    const first = f.models.find(m => m.supportsImages !== false) ?? f.models[0];
-                    void saveImageModel({ framework: f.id, model: first.id });
-                  }}
-                >{f.name}</button>)}
-              </div>}
-              <ImageModelPicker
-                models={active.models}
-                currentId={selectedModel}
-                current={current}
-                disabled={savingImageModel}
-                onSelect={model => void saveImageModel(model ? { framework: active.id, model } : null)}
-              />
+              <div className="knowledge-framework-model-select">
+                <FrameworkModelSelect framework={active.id as KnowledgeFramework} disabled={savingImageModel} models={Object.fromEntries(usable.map(f => [f.id, [{ id: "__default__", name: "使用默认模型（不指定）" }, ...f.models.map(m => ({ id: m.id, name: `${m.name || m.id}${m.custom ? " · 自定义" : ""}${m.supportsImages === false ? " · 不支持图片" : ""}`, meta: { ...m.meta, supportsImages: m.supportsImages } }))]]))} modelValues={{ [active.id]: selectedModel || "__default__" }} onFrameworkChange={id => { const f = usable.find(item => item.id === id); if (!f || id === active.id) return; const first = f.models.find(m => m.supportsImages !== false) ?? f.models[0]; void saveImageModel({ framework: id as KnowledgeFramework, model: first.id }); }} onModelChange={(id, value) => { const model = active.models.find(item => modelOptionKey({ id: item.id, meta: item.meta }) === value)?.id ?? value; void saveImageModel(model === "__default__" ? null : { framework: id as KnowledgeFramework, model }); }} />
+              </div>
               <div style={s.muted}>
                 {current ? `当前：${active.name} · ${current.name || current.id}` : "未选择，使用内置默认模型"}
                 {savingImageModel ? " · 保存中…" : ""}

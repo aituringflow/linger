@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { APP_HOME_DIR } from "../app-name.js";
 
-export type KnowledgeFramework = "codebuddy" | "codex";
+export type KnowledgeFramework = "codebuddy" | "codex" | "dsh";
 
 export interface KnowledgeImageModel {
   framework: KnowledgeFramework;
@@ -33,6 +33,7 @@ export interface KnowledgeSettings {
 export const FRAMEWORK_LABELS: Record<KnowledgeFramework, string> = {
   codebuddy: "WorkBuddy",
   codex: "Codex",
+  dsh: "DeepSeek Harness",
 };
 
 export function knowledgeRoot(userDataDir?: string): string {
@@ -51,7 +52,7 @@ function normalize(input: unknown): KnowledgeSettings {
     if (!candidate || typeof candidate !== "object") continue;
     const framework = candidate.framework;
     const model = typeof candidate.model === "string" ? candidate.model.trim() : "";
-    if ((framework === "codebuddy" || framework === "codex") && model) next[key] = { framework, model };
+    if ((framework === "codebuddy" || framework === "codex" || framework === "dsh") && model) next[key] = { framework, model };
   }
   return next;
 }

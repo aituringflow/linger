@@ -473,7 +473,7 @@ export interface LauncherApi {
 }
 
 /** 图片识别可选的框架 */
-export type KnowledgeFramework = "codebuddy" | "codex";
+export type KnowledgeFramework = "codebuddy" | "codex" | "dsh";
 
 /** 一个图片识别模型的选项 */
 export interface KnowledgeImageModelChoice {
@@ -485,6 +485,8 @@ export interface KnowledgeImageModelChoice {
   custom?: boolean;
   /** 明确声明不支持图片时为 false；未知（undefined）按可用处理 */
   supportsImages?: boolean;
+  /** Safe display metadata shared with the composer model picker. */
+  meta?: Record<string, unknown>;
 }
 
 /** 一个框架及其可选的图片识别模型 */

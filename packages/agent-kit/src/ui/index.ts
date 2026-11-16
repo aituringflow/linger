@@ -151,3 +151,8 @@ export { Avatar } from "./shared/AvatarView.tsx";
 export type { AvatarProps } from "./shared/AvatarView.tsx";
 export { ChatLocaleProvider } from './chat/i18n.tsx';
 export { ASSISTANT_NAME } from "../shared/assistant-name.ts";
+
+export { default as FrameworkModelSelect } from "./components/FrameworkModelSelect.tsx";
+
+export { FrameworkModelProvider, useFrameworkModelDiscovery } from "./components/FrameworkModelDiscovery.tsx";
+export type { DiscoveredFramework, DiscoveredModel } from "./components/FrameworkModelDiscovery.tsx";

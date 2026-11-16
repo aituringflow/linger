@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 export type GroupMemoryMessage = { id: number; role: string; content: string; senderSub?: string | null; senderName?: string | null; revokedAt?: string | null; createdAt?: string | null };
 export type GroupMemoryParticipant = { userSub: string; name?: string | null; memoryName?: string | null; username?: string | null; addedAt?: string | null };
-export function groupMemoryModel(selected?: { framework: "codebuddy" | "codex"; model: string }) {
+export function groupMemoryModel(selected?: { framework: "codebuddy" | "codex" | "dsh"; model: string }) {
   return selected ?? { framework: "codebuddy" as const, model: "hy3" };
 }
 

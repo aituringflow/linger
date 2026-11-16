@@ -1,3 +1,4 @@
+import { listDshModels } from "../dsh-models.js";
 import { ipcMain, BrowserWindow, dialog, shell } from "electron";
 import fs from "node:fs/promises";
 import http from "node:http";
@@ -233,21 +234,28 @@ export function registerKnowledgeBase(appHomeDir?: string): KnowledgeModule {
   ipcMain.handle("knowledge:settings:get", () => readKnowledgeSettings(userDataDir));
   ipcMain.handle("knowledge:settings:save", (_event, patch: unknown) => writeKnowledgeSettings(patch, userDataDir));
   ipcMain.handle("knowledge:image-models", async () => {
-    const [codebuddy, codex] = await Promise.all([codebuddyImageModels(), codexImageModels()]);
-    return [codebuddy, codex];
+    const [codebuddy, codex, dsh] = await Promise.all([codebuddyImageModels(true), codexImageModels(), dshImageModels()]);
+    return [codebuddy, codex, dsh];
   });
   ipcMain.handle("knowledge:framework-models", async (_event, framework: unknown) => {
     if (framework === "codebuddy") return codebuddyImageModels(true);
     if (framework === "codex") return codexImageModels();
+    if (framework === "dsh") return dshImageModels();
     throw new Error("Unknown model framework");
   });
   ipcMain.handle("knowledge:custom-memory-models", () => getModelOptions().map(model => codebuddyChoice(model, true)));
+
+  function displayModelMeta(meta?: Record<string, unknown>): Record<string, unknown> | undefined {
+    if (!meta) return undefined;
+    const fields = ["vendor", "version", "family", "maxInputTokens", "maxOutputTokens", "description", "descriptionZh", "descriptionEn", "supportsToolCall", "supportsImages", "supportsReasoning", "contextWindow", "maxImageCount", "credits", "credit", "modelType", "iconUrl"];
+    return Object.fromEntries(fields.filter(field => meta[field] != null).map(field => [field, meta[field]]));
+  }
 
   function codebuddyChoice(model: string | { id: string; name?: string; meta?: Record<string, unknown> }, isCustom: boolean): KnowledgeImageModelChoice {
     const id = typeof model === "string" ? model : model.id;
     const meta = typeof model === "string" ? undefined : model.meta;
     return { id, name: typeof model === "string" ? undefined : model.name, vendor: typeof meta?.vendor === "string" ? meta.vendor : undefined,
-      custom: isCustom, supportsImages: typeof meta?.supportsImages === "boolean" ? meta.supportsImages : undefined };
+      custom: isCustom, supportsImages: typeof meta?.supportsImages === "boolean" ? meta.supportsImages : undefined, meta: displayModelMeta(meta) };
   }
 
   /** WorkBuddy SDK models plus models.json; retain custom models if the SDK probe fails. */
@@ -257,11 +265,21 @@ export function registerKnowledgeBase(appHomeDir?: string): KnowledgeModule {
       const groups = includeSdk ? { custom: getModelOptions(), native: await getAvailableCodeBuddyModels() } : await getCodeBuddyModelGroups();
       const { custom, native } = groups;
       // 自定义放前面：用户自己配的通常就是本地视觉模型，命中率更高
-      return { ...base, models: [...custom.map((m) => codebuddyChoice(m, true)), ...(native ?? []).map((m) => codebuddyChoice(m, false))],
+      const nativeChoices = (native ?? []).map((m) => codebuddyChoice(m, false));
+      const customChoices = custom.map((m) => codebuddyChoice(m, true)).map(choice => {
+        const sdk = nativeChoices.find(item => item.id === choice.id);
+        return sdk ? { ...choice, meta: { ...choice.meta, ...sdk.meta }, supportsImages: sdk.supportsImages ?? choice.supportsImages } : choice;
+      });
+      return { ...base, models: [...customChoices, ...nativeChoices.filter(item => !customChoices.some(choice => choice.id === item.id))],
         ...(!native ? { error: "workbuddy_models_unavailable" } : {}) };
     } catch (error) {
       return { ...base, models: getModelOptions().map(model => codebuddyChoice(model, true)), error: error instanceof Error ? error.message : String(error) };
     }
+  }
+
+  async function dshImageModels(): Promise<KnowledgeFrameworkModels> {
+    const models = await listDshModels();
+    return { id: "dsh", name: FRAMEWORK_LABELS.dsh, models, ...(models.length ? {} : { error: "请先配置 DeepSeek API Key" }) };
   }
 
   /** Codex：CLI 自带模型（需要 CLI 已安装）+ models.json 里带 vendor 的自定义模型。 */
@@ -277,6 +295,7 @@ export function registerKnowledgeBase(appHomeDir?: string): KnowledgeModule {
           name: model.name,
           vendor,
           custom: Boolean(vendor),
+          meta: displayModelMeta(model.meta),
           supportsImages: typeof model.meta?.supportsImages === "boolean" ? model.meta.supportsImages : undefined,
         };
       });

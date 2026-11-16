@@ -101,7 +101,7 @@ function publish(event, value) {
 
 async function askHy3(instruction, images) {
   const selected = analysisModel || selectedVisionModel();
-  if (selected.framework === 'codex' || isCustomModel(selected.model)) return askCodex(instruction, images, selected.model, undefined, selected.framework);
+  if (selected.framework === 'codex' || selected.framework === 'dsh' || isCustomModel(selected.model)) return askCodex(instruction, images, selected.model, undefined, selected.framework);
   const { query } = await import('@tencent-ai/agent-sdk');
   const userMessage = {
     type: 'user', session_id: '', parent_tool_use_id: null,

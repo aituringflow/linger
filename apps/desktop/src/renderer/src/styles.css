@@ -157,7 +157,7 @@ button {
   left: 84px;
   right: 0;
   height: 26px;
-  z-index: 10000;
+  z-index: 1;
   -webkit-app-region: drag;
   app-region: drag;
   user-select: none;
@@ -172,19 +172,6 @@ button {
   pointer-events: none;
   transition: opacity 240ms ease;
 }
-:root[data-theme="light"] /* Electron's hidden macOS title bar needs an explicit native drag region. */
-.mac-window-drag-bar {
-  position: fixed;
-  top: 0;
-  left: 84px;
-  right: 0;
-  height: 26px;
-  z-index: 10000;
-  -webkit-app-region: drag;
-  app-region: drag;
-  user-select: none;
-}
-
 /* 浅色主题才把浅色壁纸叠上来；这两条原来丢了 :root[data-theme="light"] 前缀，
    于是深色主题下 default-light.svg 仍然盖住 default-dark.svg，⌘2 看起来「没生效」。 */
 :root[data-theme="light"] .desktop-light-wallpaper { opacity: 1; }
@@ -1257,6 +1244,12 @@ button {
 }
 
 /* 点击主入口后的聚焦模式，保留 Dock，聊天区域占满其上方工作区。 */
+.quick-input.window-frame {
+  /* Internal windows must receive pointer events over the native title-bar strip. */
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 .quick-input.focus-mode {
   --focus-left-extension: 0px;
   --focus-right-extension: 0px;

@@ -5,8 +5,7 @@
  *
  * 与原生 <select> 的差异：触发按钮 + 向上展开的圆角菜单、列表项 hover/选中态、勾选标记。
  * - 触发按钮显示当前模型名与 chevron，点击展开菜单（向上弹出，避免遮挡输入区）。
- * - 收起状态悬停触发按钮显示选中模型详情；点击按钮展开模型列表
- *   （提供商 / 上下文窗口 / 最大输出 Token / 工具调用 / 图像输入等），但**绝不展示 apiKey**。
+ * - 点击按钮展开模型列表，悬停或聚焦列表项显示模型详情，绝不展示 apiKey。
  *
  * 模型来源有两种：
  *   - models.json 配置的自定义模型：{ id, name, meta }，界面优先显示 name；
@@ -14,6 +13,7 @@
  * 无论哪种，发送给服务端的 model 值始终为 id（name / meta 仅作展示）。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useClickOutside } from "../useClickOutside.ts";
 import { ModelSelectGlyph01, ModelSelectGlyph02 } from "../icons/PageIcons.tsx";
 import { ModelIcon } from "./ModelIcon.tsx";
@@ -51,6 +51,7 @@ const HIDDEN_KEYS = new Set(["apiKey", "id", "name", "url", "temperature", "reas
 const KNOWN_LABELS: Record<string, string> = {
   vendor: "提供商",
   url: "接口地址",
+  contextWindow: "上下文窗口",
   maxInputTokens: "最大输入 Token",
   maxOutputTokens: "最大输出 Token",
   temperature: "温度",
@@ -75,7 +76,7 @@ function buildMetaRows(meta?: ModelMeta): { label: string; value: string }[] {
     if (typeof raw === "boolean") value = raw ? "是" : "否";
     else if (typeof raw === "object") value = JSON.stringify(raw);
     else value = String(raw);
-    if (key === "maxInputTokens" || key === "maxOutputTokens") {
+    if (key === "maxInputTokens" || key === "maxOutputTokens" || key === "contextWindow") {
       const tokens = typeof raw === "number" ? raw : Number(raw);
       if (Number.isFinite(tokens) && tokens >= 1000) {
         const divisor = tokens >= 1_000_000 ? 1_000_000 : 1000;
@@ -89,11 +90,11 @@ function buildMetaRows(meta?: ModelMeta): { label: string; value: string }[] {
     }
     rows.push({ label, value });
   }
-  // 优先使用中文专用描述；通用描述只有包含中文时才展示。
+  // 优先使用中文描述，回退到 SDK 的通用或英文描述。
   const description = typeof meta.descriptionZh === "string" && meta.descriptionZh.trim()
     ? meta.descriptionZh.trim()
-    : typeof meta.description === "string" && /\p{Script=Han}/u.test(meta.description)
-      ? meta.description.trim() : "";
+    : typeof meta.description === "string" && meta.description.trim()
+      ? meta.description.trim() : typeof meta.descriptionEn === "string" ? meta.descriptionEn.trim() : "";
   if (description) rows.push({ label: "描述", value: description });
   return rows;
 }
@@ -120,10 +121,9 @@ export default function ModelSelect({
   options,
   value,
   onChange,
-  title = "选择模型：发送后该会话立即使用所选模型（悬停查看模型详情）",
+  title = "选择模型",
   disabled = false,
   compact = false,
-  openOnHover = false,
   iconOnNarrow = false,
   showIcon = true,
   forceUp = false,
@@ -151,8 +151,11 @@ export default function ModelSelect({
   emptyLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [hover, setHover] = useState(false);
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [detailPosition, setDetailPosition] = useState<{ top: number; left: number } | null>(null);
   const [dir, setDir] = useState<"up" | "down">("up");
+  const [popupPosition, setPopupPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const [menuMaxH, setMenuMaxH] = useState<number | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
   const norm = options.map(normalizeModelOption).filter((o) => o.id);
@@ -160,7 +163,7 @@ export default function ModelSelect({
   /** 视口感知定位：展开时按触发按钮上下剩余空间决定向上/向下弹出，并把菜单高度限制在可视范围内，
    *  避免窄屏（移动端）列表过长时弹出层超出视口、顶部选项无法点到。 */
   const positionPopup = useCallback(() => {
-    if (forceUp) { setDir("up"); setMenuMaxH(undefined); return; }
+
     const btn = ref.current?.querySelector<HTMLElement>(".chat-model-picker-btn");
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
@@ -169,11 +172,13 @@ export default function ModelSelect({
     const spaceAbove = rect.top - margin;
     const spaceBelow = vh - rect.bottom - margin;
     const desired = 240;
-    const useDown = spaceBelow >= spaceAbove && spaceBelow > desired * 0.4;
+    const useDown = !forceUp && spaceBelow >= spaceAbove && spaceBelow > desired * 0.4;
     setDir(useDown ? "down" : "up");
-    const avail = Math.max(spaceAbove, spaceBelow);
     // 仅在可视空间不足时收缩；空间充足时维持桌面默认上限（与 CSS 的 240px 一致）
-    setMenuMaxH(Math.max(140, Math.min(desired, avail - margin)));
+    const height = Math.max(40, Math.min(desired, (useDown ? spaceBelow : spaceAbove) - margin));
+    setMenuMaxH(height);
+    const width = Math.min(360, window.innerWidth - 16);
+    setPopupPosition({ left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)), top: useDown ? rect.bottom + 6 : rect.top - 6, width });
   }, [forceUp]);
 
   // 选中态按身份 key 命中：同 id 不同 vendor 的条目各自可选中、各自高亮。
@@ -181,8 +186,15 @@ export default function ModelSelect({
   const current =
     norm.find((o) => modelOptionKey(o) === value) ?? norm.find((o) => o.id === value);
   const selectedIndex = current ? norm.indexOf(current) : -1;
-  const detailRowsForHover = buildMetaRows(current?.meta);
-  const showDetail = showHoverDetail && hover && !open && !compact;
+  const detailOption = hovered == null ? undefined : norm[hovered];
+  const detailRowsForHover = buildMetaRows(detailOption?.meta);
+  const showDetail = showHoverDetail && open && !!detailOption && !!detailPosition;
+  const showItemDetail = (index: number, element: HTMLElement) => {
+    const rect = element.getBoundingClientRect();
+    const width = 260;
+    setDetailPosition({ top: Math.max(8, Math.min(rect.top, window.innerHeight - 180)), left: rect.right + width + 8 <= window.innerWidth ? rect.right + 8 : Math.max(8, rect.left - width - 8) });
+    setHovered(index);
+  };
 
   useEffect(() => {
     if (norm.length === 0) setOpen(false);
@@ -203,7 +215,7 @@ export default function ModelSelect({
   // 下拉菜单：点击组件（按钮+菜单）之外任意处或 Esc 关闭（捕获阶段监听，避免菜单内事件被吞）
   useClickOutside({
     enabled: open,
-    refs: [ref],
+    refs: [ref, popupRef],
     capture: true,
     onDismiss: () => setOpen(false),
   });
@@ -211,16 +223,14 @@ export default function ModelSelect({
   if (norm.length === 0) return <span className="chat-model-picker-empty" aria-live="polite">{emptyLabel}</span>;
 
   return (
-    <div className={`chat-model-picker${compact ? " is-compact" : ""}${openOnHover ? " is-hover-open" : ""}${iconOnNarrow ? " has-narrow-icon" : ""}`} ref={ref}
-      onMouseEnter={() => { if (!disabled) { setHover(true); if (openOnHover) setOpen(true); } }}
-      onMouseLeave={() => { setHover(false); if (openOnHover) setOpen(false); }}>
-      {/* 收起时悬停查看当前模型详情。 */}
-      {showDetail ? (
-        <div className="chat-model-picker-detail" role="tooltip">
+    <div className={`chat-model-picker${compact ? " is-compact" : ""}${iconOnNarrow ? " has-narrow-icon" : ""}`} ref={ref}>
+      {/* 列表项的介绍脱离可滚动容器，避免被裁切。 */}
+      {showDetail ? createPortal((
+        <div className="chat-model-picker-detail" role="tooltip" style={{ position: "fixed", top: detailPosition!.top, left: detailPosition!.left, bottom: "auto", right: "auto", width: "min(260px, calc(100vw - 16px))", maxHeight: "calc(100vh - 16px)", overflow: "auto", pointerEvents: "none", zIndex: 10001 }}>
           <div className="chat-model-picker-detail-head">
             <span className="chat-model-picker-detail-title">
-              {showIcon ? <ModelIcon iconUrl={current?.meta?.iconUrl} modelId={current?.id} name={current?.name} size={18} /> : null}
-              <span className="chat-model-picker-detail-name">{displayName(current?.id ?? value, current?.name)}</span>
+              {showIcon ? <ModelIcon iconUrl={detailOption?.meta?.iconUrl} modelId={detailOption?.id} name={detailOption?.name} size={18} /> : null}
+              <span className="chat-model-picker-detail-name">{displayName(detailOption?.id ?? value, detailOption?.name)}</span>
             </span>
           </div>
           <div className="chat-model-picker-detail-rows">
@@ -233,13 +243,17 @@ export default function ModelSelect({
             ))}
           </div>
         </div>
-      ) : null}
-      {open ? <div className={`chat-model-picker-popup${dir === "down" ? " is-down" : ""}`}>
-        <ul className="chat-model-picker-menu" role="listbox" style={menuMaxH != null ? { maxHeight: menuMaxH } : undefined}>
+      ), document.body) : null}
+      {open && popupPosition ? createPortal(<div ref={popupRef} className={`chat-model-picker-popup${dir === "down" ? " is-down" : ""}`} style={{ position: "fixed", left: popupPosition.left, top: popupPosition.top, right: "auto", bottom: "auto", width: popupPosition.width, transform: dir === "up" ? "translateY(-100%)" : undefined, zIndex: 10000 }} onMouseLeave={() => setHovered(null)}>
+        <ul className="chat-model-picker-menu" role="listbox" onScroll={() => setHovered(null)} style={menuMaxH != null ? { maxHeight: menuMaxH } : undefined}>
           {norm.map((o, idx) => (
             <li key={modelOptionKey(o)} role="option" aria-selected={idx === selectedIndex}
               className={`chat-model-picker-item${idx === selectedIndex ? " selected" : ""}`}
               tabIndex={0}
+              onMouseEnter={(e) => showItemDetail(idx, e.currentTarget)}
+              onMouseLeave={() => setHovered(null)}
+              onFocus={(e) => showItemDetail(idx, e.currentTarget)}
+              onBlur={() => setHovered(null)}
               onClick={() => { onChange(modelOptionKey(o)); setOpen(false); }}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onChange(modelOptionKey(o)); setOpen(false); } }}>
               {showIcon ? <ModelIcon iconUrl={o.meta?.iconUrl} modelId={o.id} name={o.name} /> : null}
@@ -256,16 +270,15 @@ export default function ModelSelect({
             </li>
           ))}
         </ul>
-      </div> : null}
+      </div>, document.body) : null}
       <button
         type="button"
         disabled={disabled}
         className={`chat-model-picker-btn${open ? " open" : ""}`}
-        onClick={() => setOpen((v) => openOnHover ? true : !v)}
+        onClick={() => { setHovered(null); setOpen((v) => !v); }}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={title}
-        aria-label={iconOnNarrow ? `选择模型：${displayName(current?.id ?? value, current?.name)}` : undefined}
+        aria-label={title}
       >
         {showIcon ? iconOnNarrow ? <ModelSelectGlyph01 /> : <ModelIcon iconUrl={current?.meta?.iconUrl} modelId={current?.id} name={current?.name} /> : null}
         <span className="chat-model-picker-name">{displayName(current?.id ?? value, current?.name)}</span>

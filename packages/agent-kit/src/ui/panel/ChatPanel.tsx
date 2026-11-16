@@ -62,6 +62,7 @@ import { stripRateLimitText } from "../shared/assistantText.ts";
 import { useChatScroll } from "../useChatScroll.ts";
 import { useAtMention, type MentionCandidate } from "../shared/useAtMention.ts";
 import MessageSlider from "../components/MessageSlider.tsx";
+import FrameworkModelSelect from "../components/FrameworkModelSelect.tsx";
 import ModelSelect, { modelOptionKey, normalizeModelOption, type ModelOption, type ModelMeta } from "../components/ModelSelect.tsx";
 import { ModelSelectGlyph01 } from "../icons/PageIcons.tsx";
 import { MobileChoiceDialog } from "../components/MobileChoiceDialog.tsx";
@@ -724,15 +725,8 @@ export default function ChatPanel({ active, views, coworkView, toolbar, showVoic
       <div className={split ? "chat-split-grid" : "chat-single-body"}>
       <div className={`chat-split-primary${compareOnly ? " is-hidden" : ""}`}>
       {split ? <div className="chat-split-pane-head">
-        {agentModes.length > 1 ? <ModelSelect showIcon={false} options={agentModes.map((mode) => ({ id: mode, name: mode === "dsh" ? "DeepSeek Harness" : mode === "codex" ? "Codex" : "CodeBuddy" }))}
-          value={agentMode} title={t("leftFramework")} disabled={busy} compact openOnHover onChange={(mode) => { setAgentMode(mode as typeof agentMode); saveAgentMode(sessionId, mode); }} /> : null}
-        {agentModes.length > 0 && showModel && agentMode === "codebuddy" && modelOptions.length ? <ModelSelect options={modelOptions} value={selectedModel} onChange={changeModel} /> : null}
+        <FrameworkModelSelect frameworks={agentModes} framework={agentMode} onFrameworkChange={(mode) => { setAgentMode(mode); saveAgentMode(sessionId, mode); }} models={{ codebuddy: modelOptions, codex: codexModelOptions, dsh: dshModelOptions }} modelValues={{ codebuddy: selectedModel, codex: selectedCodexModel, dsh: selectedDshModel }} hideModel={!showModel} disabled={busy} frameworkLabel={t("leftFramework")} onModelChange={(mode, key) => { if (mode === "codebuddy") changeModel(key); else if (mode === "dsh") setSelectedDshModel(key); else if (mode === "codex") { setSelectedCodexModel(key); localStorage.setItem(`agent-kit:codex-model:${sessionId}`, key); } }} />
         {agentMode === "codebuddy" && !modelOptions.length && modelsLoaded ? <span className="chat-model-error" role="alert">{modelError}</span> : null}
-        {agentModes.length > 0 && showModel && agentMode === "dsh" && dshModelOptions.length ? <ModelSelect options={dshModelOptions} value={selectedDshModel} onChange={setSelectedDshModel} /> : null}
-        {agentModes.length > 0 && showModel && agentMode === "codex" && codexModelOptions.length ? <ModelSelect options={codexModelOptions} value={selectedCodexModel} onChange={(key) => {
-          setSelectedCodexModel(key);
-          localStorage.setItem(`agent-kit:codex-model:${sessionId}`, key);
-        }} /> : null}
         <button type="button" className="chat-split-close" aria-label={t("closeLeftView")} title={t("closeLeftView")} onClick={() => closeSplitView("left")}>×</button>
       </div> : null}
       <div className={`chat-body${contentLoading ? " is-loading" : ""}`} ref={bindBodyRef} tabIndex={0}>
@@ -1541,33 +1535,8 @@ export default function ChatPanel({ active, views, coworkView, toolbar, showVoic
           })() : null}
           {/* 小屏时仅框架和模型选择移到上方；上下文用量留在底部操作行。 */}
           <div className="chat-toolbar-pickers">
-          <div className="chat-pickers-row chat-pickers-model-row">
-          {!split && agentModes.length > 0 && (compareOnly ? compareMode : agentMode) === "codebuddy" && modelSelectionEnabled && showModel && modelOptions.length ? (
-            <ModelSelect options={modelOptions} value={compareOnly ? compareModelKey : selectedModel} iconOnNarrow onChange={compareOnly ? (key) => { setCompareModelKey(key); localStorage.setItem(`agent-kit:compare-model:${sessionId}:${compareMode}`, key); } : changeModel} />
-          ) : null}
-          {!split && !agentModesPending && agentModes.length === 0 ? (
-            <button type="button" className="chat-model-error" onClick={() => window.dispatchEvent(new Event("launcher:open-compute-settings"))}>{t("noCompute")}</button>
-          ) : !split && agentModes.length > 0 && agentMode !== "dsh" && !modelOptions.length && !codexModelOptions.length && modelsLoaded ? (
-            <button type="button" className="chat-model-error" onClick={() => window.dispatchEvent(new Event("launcher:open-compute-settings"))}>{t("noComputeShort")}</button>
-          ) : !split && agentModes.length > 0 && (compareOnly ? compareMode : agentMode) === "codebuddy" && !modelOptions.length && modelsLoaded ? <span className="chat-model-error" role="alert">{modelError}</span> : null}
-          {!split && agentModes.length > 0 && !compareOnly && agentMode === "dsh" && showModel && dshModelOptions.length ? <ModelSelect options={dshModelOptions} value={selectedDshModel} onChange={setSelectedDshModel} iconOnNarrow /> : null}
-          {!split && agentModes.length > 0 && (compareOnly ? compareMode : agentMode) === "codex" && showModel && codexModelOptions.length ? (
-            <ModelSelect options={codexModelOptions} value={compareOnly ? compareModelKey : selectedCodexModel} iconOnNarrow onChange={(key) => {
-              if (compareOnly) { setCompareModelKey(key); localStorage.setItem(`agent-kit:compare-model:${sessionId}:${compareMode}`, key); }
-              else { setSelectedCodexModel(key); localStorage.setItem(`agent-kit:codex-model:${sessionId}`, key); }
-            }} />
-          ) : null}
-          </div>
-          {multiFramework && !split && agentModes.length > 1 ? (
-            <div className="chat-pickers-row chat-pickers-framework-row">
-              <ModelSelect showIcon={false} options={agentModes.filter((mode) => !compareOnly || mode !== "dsh").map((mode) => ({ id: mode, name: mode === "dsh" ? "DeepSeek Harness" : mode === "codex" ? "Codex" : "CodeBuddy" }))}
-                value={compareOnly ? compareMode : agentMode} title={t("chooseFramework")} disabled={compareOnly ? compareBusy : busy} compact openOnHover onChange={(key) => {
-                const mode = key as typeof agentMode;
-                if (compareOnly) setCompareMode(mode as "codebuddy" | "codex");
-                else { setAgentMode(mode); saveAgentMode(sessionId, mode); }
-              }} />
-            </div>
-          ) : null}
+          {!split && agentModes.length > 0 ? <FrameworkModelSelect iconOnNarrow frameworkClassName="chat-pickers-row chat-pickers-framework-row" modelClassName="chat-pickers-row chat-pickers-model-row" frameworks={agentModes.filter(mode => !compareOnly || mode !== "dsh")} framework={compareOnly ? compareMode : agentMode} hideFramework={!multiFramework} hideModel={!showModel || ((compareOnly ? compareMode : agentMode) === "codebuddy" && !modelSelectionEnabled)} disabled={compareOnly ? compareBusy : busy} frameworkLabel={t("chooseFramework")} models={{ codebuddy: modelOptions, codex: codexModelOptions, dsh: dshModelOptions }} modelValues={{ codebuddy: compareOnly ? compareModelKey : selectedModel, codex: compareOnly ? compareModelKey : selectedCodexModel, dsh: selectedDshModel }} onFrameworkChange={(mode) => { if (compareOnly) setCompareMode(mode as "codebuddy" | "codex"); else { setAgentMode(mode); saveAgentMode(sessionId, mode); } }} onModelChange={(mode, key) => { if (compareOnly) { setCompareModelKey(key); localStorage.setItem(`agent-kit:compare-model:${sessionId}:${compareMode}`, key); } else if (mode === "codebuddy") changeModel(key); else if (mode === "dsh") setSelectedDshModel(key); else if (mode === "codex") { setSelectedCodexModel(key); localStorage.setItem(`agent-kit:codex-model:${sessionId}`, key); } }} /> : null}
+          {!split && !agentModesPending && agentModes.length === 0 ? <button type="button" className="chat-model-error" onClick={() => window.dispatchEvent(new Event("launcher:open-compute-settings"))}>{t("noCompute")}</button> : !split && (compareOnly ? compareMode : agentMode) === "codebuddy" && !modelOptions.length && modelsLoaded ? <span className="chat-model-error" role="alert">{modelError}</span> : null}
           </div>
           </div>
           <div className="chat-toolbar-right">

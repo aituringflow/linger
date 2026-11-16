@@ -7170,7 +7170,7 @@ function AgentWindowContent({
   // 无法反映真实压力，会出现「已换行但权限文字还在」。故用 ResizeObserver
   // + 临时 natural-width 测量来判定；同时 .chat-toolbar-center 默认 nowrap，
   // 工具栏始终保持一行，模型名较长时不再挤出第二行。
-  const [toolbarCompact, setToolbarCompact] = useState(0); // 0=全量 1=权限仅图标 2=模型仅图标
+  const [toolbarCompact, setToolbarCompact] = useState(0); // 0=全量 1=权限图标 2=模型图标 3=隐藏框架 4=隐藏模型
   useLayoutEffect(() => {
     const center = toolbarCenterRef.current;
     if (!center) return;
@@ -7179,7 +7179,7 @@ function AgentWindowContent({
       const c = toolbarCenterRef.current;
       if (!c) return;
       const avail = c.clientWidth;
-      if (avail <= 0) return;
+
       const pickersEl = c.querySelector<HTMLElement>(".chat-toolbar-pickers");
       const pickerRows: HTMLElement[] = pickersEl
         ? (Array.from(pickersEl.children).filter((el) => el instanceof HTMLElement) as HTMLElement[])
@@ -7212,7 +7212,9 @@ function AgentWindowContent({
       // 各级别均为单行；模型图标按钮宽 36px。
       const need0 = mainWithText + modelW + fwW + gap(mainN + pickerCount);
       const need1 = mainIconOnly + modelW + fwW + gap(mainN + pickerCount);
-      const level = need0 <= avail ? 0 : need1 <= avail ? 1 : 2;
+      const need2 = mainIconOnly + (hasModel ? 36 : 0) + fwW + gap(mainN + pickerCount);
+      const need3 = mainIconOnly + (hasModel ? 36 : 0) + gap(mainN + (hasModel ? 1 : 0));
+      const level = need0 <= avail ? 0 : need1 <= avail ? 1 : need2 <= avail ? 2 : need3 <= avail ? 3 : 4;
       setToolbarCompact((prev) => (prev === level ? prev : level));
     };
     measure();

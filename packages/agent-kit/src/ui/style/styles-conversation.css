@@ -319,11 +319,6 @@ mark {
 .chat-split-pane-head { position: relative; z-index: 230; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 6px 15px; border-bottom: 1px solid var(--line); }
 .chat-split-close { flex: 0 0 auto; margin-left: auto; width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font-size: 22px; line-height: 1; cursor: pointer; }
 .chat-split-close:hover { background: var(--hover); color: var(--ink); }
-.chat-split-pane-head .chat-model-picker-popup,
-.chat-split-pane-head .chat-model-picker.is-hover-open .chat-model-picker-popup {
-  top: 100%; bottom: auto; left: 0; right: auto;
-}
-.chat-split-pane-head .chat-model-picker-detail { top: calc(100% + 8px); bottom: auto; left: 0; right: auto; }
 .chat-split-pane-head select { max-width: 140px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; font-size: 13px; }
 .chat-split-button { display: inline-flex; align-items: center; justify-content: center; }
 .chat-split-button.is-active { background: var(--hover-strong); color: var(--ink); }
@@ -2171,16 +2166,22 @@ mark {
 
 /* 单行降级：先收起权限文字，再将模型名称收成大脑图标。 */
 .chat-toolbar-center[data-compact="1"] .chat-permission-label,
-.chat-toolbar-center[data-compact="2"] .chat-permission-label { display: none; }
+.chat-toolbar-center[data-compact="2"] .chat-permission-label,
+.chat-toolbar-center[data-compact="3"] .chat-permission-label,
+.chat-toolbar-center[data-compact="4"] .chat-permission-label { display: none; }
 .chat-toolbar-center[data-compact="1"] .chat-permission-btn,
-.chat-toolbar-center[data-compact="2"] .chat-permission-btn { width: 36px; padding: 0; justify-content: center; }
-.chat-toolbar-center[data-compact="2"] .chat-pickers-model-row { flex: 0 0 36px; }
-.chat-toolbar-center[data-compact="2"] .chat-model-picker.has-narrow-icon .chat-model-picker-btn {
+.chat-toolbar-center[data-compact="2"] .chat-permission-btn,
+.chat-toolbar-center[data-compact="3"] .chat-permission-btn,
+.chat-toolbar-center[data-compact="4"] .chat-permission-btn { width: 36px; padding: 0; justify-content: center; }
+.chat-toolbar-center:is([data-compact="2"], [data-compact="3"], [data-compact="4"]) .chat-pickers-model-row { flex: 0 0 36px; }
+.chat-toolbar-center:is([data-compact="2"], [data-compact="3"], [data-compact="4"]) .chat-model-picker.has-narrow-icon .chat-model-picker-btn {
   width: 36px; padding: 0; justify-content: center;
 }
-.chat-toolbar-center[data-compact="2"] .chat-model-picker.has-narrow-icon .chat-model-picker-name,
-.chat-toolbar-center[data-compact="2"] .chat-model-picker.has-narrow-icon .chat-model-picker-chev { display: none; }
-.chat-toolbar-center[data-compact="2"] .chat-model-picker.has-narrow-icon .chat-model-picker-brain { display: block; }
+.chat-toolbar-center:is([data-compact="2"], [data-compact="3"], [data-compact="4"]) .chat-model-picker.has-narrow-icon .chat-model-picker-name,
+.chat-toolbar-center:is([data-compact="2"], [data-compact="3"], [data-compact="4"]) .chat-model-picker.has-narrow-icon .chat-model-picker-chev { display: none; }
+.chat-toolbar-center:is([data-compact="2"], [data-compact="3"], [data-compact="4"]) .chat-model-picker.has-narrow-icon .chat-model-picker-brain { display: block; }
+.chat-toolbar-center:is([data-compact="3"], [data-compact="4"]) .chat-pickers-framework-row,
+.chat-toolbar-center[data-compact="4"] .chat-pickers-model-row { display: none; }
 .chat-pickers-row:empty { display: none; }
 
 /* 测量态恢复按钮的完整名称，读取单行自然宽度。 */
@@ -2259,7 +2260,7 @@ mark {
 }
 .chat-model-picker-btn.open .chat-model-picker-chev { transform: rotate(180deg); }
 /* hover 即翻转箭头：模型下拉无 openOnHover，仅靠 open 类不会翻转，需 hover 也触发 */
-.chat-model-picker-btn:hover .chat-model-picker-chev { transform: rotate(180deg); }
+
 .chat-model-picker-popup {
   position: absolute; right: 0; bottom: calc(100% + 6px);
   width: min(360px, calc(100vw - 40px)); box-sizing: border-box;
@@ -2538,3 +2539,8 @@ mark {
 [data-voice-mode="realtime"] .chat-composer-stack textarea::placeholder {
   opacity: 0;
 }
+
+.cowork-framework-model-select { display: flex; gap: 8px; min-width: 0; }
+.cowork-framework-model-select .chat-model-picker { min-width: 0; flex: 1 1 0; }
+
+.chat-toolbar-left .chat-attach-anchor { flex: 0 0 36px; }

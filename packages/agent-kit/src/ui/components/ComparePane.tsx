@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { CheckIcon, ChevronRightIcon, CopyIcon } from "../icons/SharedIcons.tsx";
 import Markdown from "./Markdown.tsx";
 import FeedbackButtons from "./FeedbackButtons.tsx";
-import ModelSelect, { modelOptionKey, type ModelMeta } from "./ModelSelect.tsx";
+import FrameworkModelSelect from "./FrameworkModelSelect.tsx";
+import { modelOptionKey, type ModelMeta } from "./ModelSelect.tsx";
 import { apiFetch } from "../shared/apiFetch.ts";
 import ThinkingActivity from "./ThinkingActivity.tsx";
 import { activityDetail, localToolKind, memoryToolLabel, toolActivityText } from "../shared/toolActivity.ts";
@@ -75,7 +76,6 @@ export default function ComparePane({ basePath, chatEndpoint, sessionId, submiss
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const storageKey = (selectedMode: Mode) => `agent-kit:compare:${sessionId}:${selectedMode}`;
-  const choices = mode === "codex" ? codexModels : codebuddyModels;
 
   useEffect(() => {
     try {
@@ -198,11 +198,7 @@ export default function ComparePane({ basePath, chatEndpoint, sessionId, submiss
 
   return <section className="chat-compare-pane" aria-label="对比答复">
     {showHeader ? <div className="chat-split-pane-head">
-      {agentModes.length > 1 ? <ModelSelect showIcon={false} options={agentModes.map((value) => ({ id: value, name: value === "codex" ? "Codex" : "CodeBuddy" }))}
-        value={mode} title="选择右侧框架" disabled={busy || queued > 0} compact openOnHover onChange={(value) => onModeChange(value as Mode)} /> : null}
-      {showModel && choices.length ? <ModelSelect options={choices} value={modelKey} onChange={(key) => {
-        onModelChange(key);
-      }} /> : null}
+      <FrameworkModelSelect frameworks={agentModes} framework={mode} onFrameworkChange={onModeChange} models={{ codebuddy: codebuddyModels, codex: codexModels }} modelValues={{ [mode]: modelKey }} onModelChange={(_mode, key) => onModelChange(key)} hideModel={!showModel} disabled={busy || queued > 0} frameworkLabel="选择右侧框架" />
       {busy ? <span className="chat-compare-running">运行中…</span> : null}
       <button type="button" className="chat-split-close" aria-label="关闭右侧视图" title="关闭右侧视图" onClick={onClose}>×</button>
     </div> : null}

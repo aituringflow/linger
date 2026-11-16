@@ -10,6 +10,7 @@ import { query } from "@tencent-ai/agent-sdk";
 import { FRAMEWORK_LABELS, knowledgeRoot, readKnowledgeSettings, type KnowledgeFramework } from "./settings.js";
 import { chatWithImage, findCustomModel } from "./custom-model.js";
 import { APP_HOME_DIR } from "../app-name.js";
+import { readDshKey } from "../dsh-credentials.js";
 
 export interface ImageDescriptionResult {
   /** 最终用于文字片段的内容（模型描述，或回退的 OCR 原文） */
@@ -180,7 +181,7 @@ function modelsFilePath(): string | null {
  */
 function modelLabel(modelId: string | undefined, framework: KnowledgeFramework): string {
   if (!modelId) return defaultImageModelLabel();
-  const custom = findCustomModel(modelId);
+  const custom = framework === "codebuddy" ? findCustomModel(modelId) : undefined;
   if (custom) return `自定义 · ${custom.name || custom.id}`;
   return `${FRAMEWORK_LABELS[framework]} · ${modelId}`;
 }
@@ -287,6 +288,34 @@ ${ocr}
 
 请输出完整的图片描述：`
     : `请描述整张图片的主题、视觉内容和关键文字；如有表格或图表，也请说明其关键信息：`;
+
+  if (selected?.framework === "dsh") {
+    try {
+      const key = readDshKey();
+      if (!key) throw new Error("请先配置 DeepSeek API Key");
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+      const timer = setTimeout(abort, 120_000);
+      try {
+        const stream = getAgentAdapter("dsh").stream({
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt, images: [{ base64, media_type: mediaType as "image/png" | "image/jpeg" }] }],
+          signal: controller.signal,
+          config: { model: selected.model, env: { DEEPSEEK_API_KEY: key, DSH_HOME: path.join(APP_HOME_DIR, "dsh") }, resume: false, maxTurns: 1 },
+        });
+        const description = (await collectAgentText(stream)).trim();
+        if (!description || containsToolCall(description)) throw new Error("模型未返回有效的图片描述");
+        return { description: stripMarkdown(description), ocr, source: "model", model: modelName };
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", abort);
+      }
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return { description: ocr, ocr, source: "fallback", model: modelName, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
 
   // Codex 走自己的 CLI（图片以 local_image 路径传入），与 CodeBuddy 的 base64 content block 不同
   if (selected?.framework === "codex") {

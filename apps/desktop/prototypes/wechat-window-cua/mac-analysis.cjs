@@ -27,7 +27,7 @@ function createImageReadGuard(paths, onProgress) {
 }
 
 async function askHy3(instruction, images, signal, onProgress = () => {}, selected = selectedVisionModel()) {
-  if (selected.framework === 'codex' || isCustomModel(selected.model)) return askCodex(instruction, images, selected.model, signal, selected.framework);
+  if (selected.framework === 'codex' || selected.framework === 'dsh' || isCustomModel(selected.model)) return askCodex(instruction, images, selected.model, signal, selected.framework);
   const { query } = await import('@tencent-ai/agent-sdk');
   const directory = images.length ? await fs.mkdtemp(path.join(os.tmpdir(), 'wechat-vision-')) : null;
   const paths = [];

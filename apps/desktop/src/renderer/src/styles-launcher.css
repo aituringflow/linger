@@ -1543,3 +1543,18 @@
 .memory-select-option.is-selected { background: var(--surface-strong); font-weight: 600; }
 .memory-select-option:disabled { opacity: .45; cursor: default; }
 @media (max-width: 480px) { .memory-select-grid { grid-template-columns: 1fr; } }
+
+.memory-select-grid .chat-model-picker, .knowledge-framework-model-select .chat-model-picker { min-width: 0; }
+.memory-select-grid .chat-model-picker-btn, .knowledge-framework-model-select .chat-model-picker-btn {
+  box-sizing: border-box; width: 100%; min-height: 36px; height: auto; padding: 8px 11px;
+  justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface-soft); color: var(--ink); text-align: left;
+}
+.memory-select-grid .chat-model-picker-btn.open, .knowledge-framework-model-select .chat-model-picker-btn.open { background: var(--surface-soft); }
+.knowledge-framework-model-select { display: flex; flex-wrap: wrap; gap: 8px; }
+.knowledge-framework-model-select .chat-model-picker:first-child:not(:last-child) { flex: 1 1 110px; }
+.knowledge-framework-model-select .chat-model-picker:last-child { flex: 0 1 auto; max-width: 100%; }
+.memory-select-grid .chat-model-picker-name, .knowledge-framework-model-select .chat-model-picker-name {
+  max-width: none; flex: 1 1 auto; min-width: 0; text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

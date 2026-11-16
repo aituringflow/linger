@@ -46,8 +46,8 @@ import { quickSessionTitle } from "../chat/quickTitle.ts";
 import { isAudioFile, isImageFile, isVideoFile, messagePreviewText, stripAttachmentLine } from "../chat/messageUtils.ts";
 import { MicIcon, AddUserIcon, SettingsIcon, ErrorMarkIcon, CopyIcon, CheckIcon, MultiSelectIcon, SmileIcon, ReplyBubbleIcon, MoreIcon } from "../icons/SharedIcons.tsx";
 import { ChatPanelGlyph01, ChatPanelGlyph04, ChatPanelGlyph08, ChatPanelGlyph21, ChatPanelGlyph24, ChatPanelGlyph35, OperationPanelGlyph08 } from "../icons/PageIcons.tsx";
-import ModelSelect, { type ModelMeta, modelOptionKey } from "./ModelSelect.tsx";
-import AppSelect from "./AppSelect.tsx";
+import { type ModelMeta, modelOptionKey } from "./ModelSelect.tsx";
+import FrameworkModelSelect from "./FrameworkModelSelect.tsx";
 import MemberChip from "./MemberChip.tsx";
 import { GROUP_EMOJIS } from "../cowork-emoji.ts";
 import { FeedbackVoteIcon } from "../icons/DynamicIcons.tsx";
@@ -188,7 +188,7 @@ type State = { messages: Message[]; run: Run | null; reactions: Reaction[];
   settings: { title: string; cowork_avatar: string; cowork_mode: string; cowork_model: string | null; cowork_codex_model: string | null; cowork_reply_policy: ReplyPolicy; cowork_fast_prompt: string } | null; ownerSub: string; ownerName?: string; ownerAvatar?: string; isTwoPerson?: boolean; isAdmin?: boolean; adminRoster?: Array<{ provider: string; contactId: string; name: string; avatar: string }> };
 
 export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, rightCtrlVoice, showVoiceButton, previewFull, selfSub, selfName, selfAvatar, members, pendingMembers,
-  models, codexModels, modes, modelSelectionEnabled, canInvite, onInvite, onStarted, onTitleChange, onGroupAvatarChange, onMessagePreview, onSidebar, onBack, onRightPanel, onMobileSettingsBack, onOpenFile, rightShown, onMonologuesChange, initialSubmission, onSubmissionConsumed, sessions, onForwarded, onMembersRemoved, capabilities, referenceSources = [], renderToolbar, initialDraftCaret, onInitialDraftRestored,
+  models, codexModels, modes: availableModes, modelSelectionEnabled, canInvite, onInvite, onStarted, onTitleChange, onGroupAvatarChange, onMessagePreview, onSidebar, onBack, onRightPanel, onMobileSettingsBack, onOpenFile, rightShown, onMonologuesChange, initialSubmission, onSubmissionConsumed, sessions, onForwarded, onMembersRemoved, capabilities, referenceSources = [], renderToolbar, initialDraftCaret, onInitialDraftRestored,
   initialMode, initialModel, initialCodexModel, muted, onMutedChange, aiMuted, onAiMutedChange, jumpMessageId, onJumpComplete, onSessionEnded, onHomeDraftChange, onMessageSubmitted, homeRecipientChips, onRemoveHomeRecipient }: {
   basePath: string; sessionId: string; title: string; sessionTitle: string; rightCtrlVoice: boolean; showVoiceButton?: boolean; previewFull: boolean; selfSub: string; selfName: string; selfAvatar?: string;
   renderToolbar?: (settings: { open: boolean; label: string; title: string; toggle: () => void }) => ReactNode;
@@ -228,6 +228,7 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
   onSessionEnded?: (kind: "leave" | "dissolve" | "delete") => void;
 }) {
   const t = useChatTranslation();
+  const modes = useMemo(() => { const supported = availableModes.filter(item => item === "codebuddy" || item === "codex"); return supported.length ? supported : ["codebuddy"]; }, [availableModes]);
   const [state, setState] = useState<State | null>(null);
   const [loadError, setLoadError] = useState("");
   const [historyOnly, setHistoryOnly] = useState(false);
@@ -1210,15 +1211,16 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
   /** 设置即时保存：改动即落库。新建群空态（会话尚未创建）时跳过请求。 */
   const canPersist = !(pendingMembers.length && !members.length);
   const persistSettings = async (patch: Record<string, unknown>) => {
-    if (!canPersist) return;
+    if (!canPersist) return true;
     setSettingsSaving(true); setSettingsError("");
     try {
       const data = await realtimeClient(basePath).request(sessionId, "settings", patch) as { title?: string; avatar?: string; error?: string };
-      if (data.error) { setSettingsError(data.error); return; }
+      if (data.error) { setSettingsError(data.error === "mode_unavailable" ? "群聊服务器未启用所选框架，请检查服务器的 AGENT_PROVIDER 配置。" : data.error); return false; }
       if (typeof data.title === "string") onTitleChange(data.title);
       if (typeof data.avatar === "string") onGroupAvatarChange(data.avatar);
       void refresh();
-    } catch (cause) { setSettingsError(cause instanceof Error ? cause.message : "保存失败"); }
+      return true;
+    } catch (cause) { const message = cause instanceof Error ? cause.message : "保存失败"; setSettingsError(message.includes("mode_unavailable") ? "群聊服务器未启用所选框架，请检查服务器的 AGENT_PROVIDER 配置。" : message); return false; }
     finally { setSettingsSaving(false); }
   };
   /** 群主（发起人）；1v1 双方天然为管理角色。 */
@@ -1900,37 +1902,16 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
                 AI 消息免打扰<input type="checkbox" role="switch" checked={!!muted || !!aiMuted} disabled={mutedSaving || !sessionId || !!pendingMembers.length && !members.length || !!muted} onChange={event => void toggleAiMuted(event.target.checked)} /><span className="cowork-settings-switch" aria-hidden="true" />
               </label>
             </div>
-            {/* 仅配置了一个可用框架（AGENT_PROVIDER 单值）时没有切换意义，隐藏整行；模型选择不受影响。 */}
-            {modes.length > 1 ? (
-              <div className="cowork-settings-field"><span>{t("framework")}</span>
-                <AppSelect
-                  options={modes.map(item => ({ value: item, label: item === "codex" ? "Codex" : "CodeBuddy" }))}
-                  value={mode}
-                  onChange={next => { setMode(next); void persistSettings({ mode: next }); }}
-                  disabled={!canConfigure}
-                  openOnHover
-                  forceUp
-                />
+            <div className="cowork-settings-field"><span>{t("framework")} / {t("model")}</span>
+              <div className="cowork-framework-model-select">
+                <FrameworkModelSelect frameworks={modes} framework={mode} onFrameworkChange={next => { const previous = mode; setMode(next); void persistSettings({ mode: next }).then(saved => { if (!saved) setMode(previous); }); }} models={{ codebuddy: models, codex: codexModels }} modelValues={{ codebuddy: model ? (models.find(m => m.id === model) ? modelOptionKey(models.find(m => m.id === model)!) : model) : "", codex: codexModel ? (codexModels.find(m => m.id === codexModel) ? modelOptionKey(codexModels.find(m => m.id === codexModel)!) : codexModel) : "" }} disabled={!canConfigure || settingsSaving} modelDisabled={mode === "codebuddy" && !modelSelectionEnabled} onModelChange={(selectedMode, key) => {
+                  const opts = selectedMode === "codex" ? codexModels : models;
+                  const newId = opts.find(m => modelOptionKey(m) === key)?.id ?? key;
+                  if (selectedMode === "codex") { setCodexModel(newId); void persistSettings({ codexModel: newId }); }
+                  else { setModel(newId); void persistSettings({ model: newId }); }
+                }} />
               </div>
-            ) : null}
-            <div className="cowork-settings-field"><span>{t("model")}</span>{(() => {
-              const opts = mode === "codex" ? codexModels : models;
-              const id = mode === "codex" ? codexModel : model;
-              const key = id ? (opts.find((m) => m.id === id) ? modelOptionKey(opts.find((m) => m.id === id)!) : id) : "";
-              return (
-                <ModelSelect
-                  options={opts}
-                  value={key}
-                  onChange={(k) => {
-                    const newId = k.includes("::") ? k.slice(k.indexOf("::") + 2) : k;
-                    if (mode === "codex") { setCodexModel(newId); void persistSettings({ codexModel: newId }); }
-                    else { setModel(newId); void persistSettings({ model: newId }); }
-                  }}
-                  disabled={!canConfigure || (mode === "codebuddy" && !modelSelectionEnabled)}
-                  forceUp
-                />
-              );
-            })()}</div>
+            </div>
             {effectiveMembers.length ? <div className="cowork-settings-danger">
               {(() => {
                 const personalChat = !everGroup && !!state?.isTwoPerson;

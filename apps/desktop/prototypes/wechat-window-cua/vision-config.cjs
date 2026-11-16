@@ -6,11 +6,11 @@ function selectedVisionModel() {
   const root = process.env.LAUNCHER_KNOWLEDGE_DIR || path.join(os.homedir(), `.${process.env.LAUNCHER_APP_NAME || 'linger'}`, 'knowledge');
   try {
     const value = JSON.parse(fs.readFileSync(path.join(root, 'settings.json'), 'utf8')).memoryImageModel;
-    if ((value?.framework === 'codebuddy' || value?.framework === 'codex') && typeof value.model === 'string' && value.model.trim()) return { framework: value.framework, model: value.model.trim() };
+    if ((value?.framework === 'codebuddy' || value?.framework === 'codex' || value?.framework === 'dsh') && typeof value.model === 'string' && value.model.trim()) return { framework: value.framework, model: value.model.trim() };
   } catch {}
   return { framework: 'codebuddy', model: 'hy3' };
 }
-function modelLabel(value = selectedVisionModel()) { return `${value.framework === 'codex' ? 'Codex' : 'WorkBuddy'} · ${value.model}`; }
+function modelLabel(value = selectedVisionModel()) { return `${value.framework === 'codex' ? 'Codex' : value.framework === 'dsh' ? 'DeepSeek Harness' : 'WorkBuddy'} · ${value.model}`; }
 function isCustomModel(model) {
   const configured = process.env.AGENT_MODELS_PATH?.trim();
   const candidates = [...(configured ? [configured.endsWith('.json') ? configured : path.join(configured, 'models.json')] : []), path.join(os.homedir(), `.${process.env.LAUNCHER_APP_NAME || 'linger'}`, 'models.json')];

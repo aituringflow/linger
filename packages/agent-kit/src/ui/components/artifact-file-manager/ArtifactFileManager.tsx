@@ -816,7 +816,7 @@ export default function ArtifactFileManager(props: ArtifactFileManagerProps) {
                 setFileDir(entry.isDir ? entry.rel : dir);
                 setFocusColumn(level);
               }} onDoubleClick={() => { if (!entry.isDir && entry.meta) openFile(entry.meta); }}>
-                <span className={`artifact-card-icon${entry.meta?.type === "text" ? " afm-code-icon" : ""}`} aria-hidden="true">{entry.isDir ? <FolderIcon /> : <ArtifactIcon type={entry.meta!.type} name={entry.name} />}</span>
+                <span className="artifact-card-icon" aria-hidden="true">{entry.isDir ? <FolderIcon /> : <ArtifactIcon type={entry.meta!.type} name={entry.name} />}</span>
                 <span className={`afm-column-name${entry.name.startsWith(".") ? " is-hidden-file" : ""}`} title={entry.name}>{entry.name}</span>
                 {entry.isDir ? <span className="afm-column-chevron"><ThinkingChevronIcon open={false} /></span> : null}
               </button>
@@ -851,7 +851,7 @@ export default function ArtifactFileManager(props: ArtifactFileManagerProps) {
               {view === "list" ? <span className="afm-tree-indent" style={{ width: (entry.depth ?? 0) * 18 }} /> : null}
               {view === "list" ? entry.isDir ? <button type="button" className="afm-tree-disclosure" aria-label={expandedDirs.includes(entry.rel) ? `收起 ${entry.name}` : `展开 ${entry.name}`} aria-expanded={expandedDirs.includes(entry.rel)} onClick={(event) => { event.stopPropagation(); setDirExpanded(entry.rel, !expandedDirs.includes(entry.rel)); setSelected([]); }}><ThinkingChevronIcon open={expandedDirs.includes(entry.rel)} /></button> : <span className="afm-tree-disclosure-placeholder" /> : null}
               <button type="button" className="artifact-list-item-mainbtn" onClick={(event) => selectEntry(event, entry.rel)} onDoubleClick={() => { if (entry.isDir) { if (view === "list") setDirExpanded(entry.rel, !expandedDirs.includes(entry.rel)); else setFileDir(entry.rel); } else if (entry.meta) openFile(entry.meta); }}>
-                <span className={`artifact-card-icon${entry.meta?.type === "text" ? " afm-code-icon" : ""}`} aria-hidden="true">{entry.isDir ? <FolderIcon /> : <ArtifactIcon type={entry.meta!.type} name={entry.name} />}</span>
+                <span className="artifact-card-icon" aria-hidden="true">{entry.isDir ? <FolderIcon /> : <ArtifactIcon type={entry.meta!.type} name={entry.name} />}</span>
                 <span className="artifact-list-item-main">
                   <span className={`artifact-list-item-name${entry.name.startsWith(".") ? " is-hidden-file" : ""}`}>{entry.name}</span>
                   <span className="artifact-list-item-meta">{entry.isDir ? "文件夹" : formatFileSize(entry.size)}{entry.mtime ? <span className="artifact-list-item-time" title={`修改于 ${new Date(entry.mtime).toLocaleString()}`}> · {formatArtifactMtime(entry.mtime)}</span> : null}</span>

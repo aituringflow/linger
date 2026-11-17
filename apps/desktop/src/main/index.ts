@@ -1588,6 +1588,9 @@ if (wechatViewerChild) {
     const traceMemory = createMemoryTrace(path.join(APP_HOME_DIR, "logs"), "retrieval");
     const traceMemoryStore = createMemoryTrace(path.join(APP_HOME_DIR, "logs"), "store");
     const localAgent = await startLocalAgentServer(path.join(APP_HOME_DIR, "artifacts"), refs, {
+      // 群聊（云端会话）的产物在 Web 服务存储根里：本机 /artifact-cloud 带登录 Cookie 转发，
+      // 否则渲染层读本机空目录 → 右栏「暂无产物」而消息里却有「查看产出物 (N)」。
+      cloudArtifact: { baseUrl: webAuthBaseUrl, cookie: webCookieHeader },
       memoryEnabled: () => LauncherStore.get().get().memoryEnabled === true,
       traceMemoryTurn: (event) => traceMemoryStore(event),
       recallMemory: async (query) => {

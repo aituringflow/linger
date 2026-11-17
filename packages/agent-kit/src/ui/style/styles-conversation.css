@@ -657,7 +657,11 @@ mark {
    （--bg 是浅色下的淡蓝页面底 #f4f6fb，会让群聊中栏变成蓝色，与单聊白底不一致）。
    输入卡片 .chat-composer-stack 用 --panel，与壳层底色自然形成对比（卡片本身还有 1px 描边 + 阴影，
    即使浅色下 --panel 与 --shell-bg 同为白，也能清晰分隔，黑暗模式仍保持 #252525 / #1a1a1a 对比）。 */
-.cowork-panel { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; height: 100%; min-height: 0; background: var(--shell-bg); color: var(--ink); }
+/* 群聊中栏的最小宽度必须与人机对话（.chat-main）完全一致：
+   这里**不能**写 min-width: 0（本文件在 styles-base.css 之后加载，单类选择器后写覆盖前者），
+   否则 .chat-main 的 min-width 会被抹掉——拖右栏或缩窄窗口时群聊中栏可以一路压到 0。
+   取值与 .chat-main 同源：中栏最小宽 375px，视口更窄时用 min(…, 100%) 回退，避免水平溢出。 */
+.cowork-panel { display: flex; flex: 1 1 0; flex-direction: column; min-width: min(375px, 100%); height: 100%; min-height: 0; background: var(--shell-bg); color: var(--ink); }
 /* Both rows use the panel width, so the message scrollbar cannot shift their edges. */
 .cowork-panel .chat-body-inner, .cowork-panel > .chat-main-inner {
   --cowork-content-width: min(1200px, calc(80cqw + 96px), calc(100cqw - 12px));

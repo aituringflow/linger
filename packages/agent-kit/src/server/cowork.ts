@@ -21,6 +21,7 @@ import { steerSession } from "./sdk.js";
 import { interruptSession } from "./session-store.js";
 import { GROUP_EMOJIS, isGroupEmoji } from "./cowork-emoji.js";
 import { completeGroupBash, ensureGroupContainer, execGroupBashTerminal, groupPreviewOrigin, removeGroupContainer, startGroupPreview } from "./group-container.js";
+import { getConfiguredCodeBuddyModels, getDefaultModel, isModelSelectEnabled } from "./model-sources.js";
 
 type AgentRoute = ReturnType<typeof createAgentApiRoute>;
 type CoworkAgent = { id: string; name: string; prompt: string; enabled: boolean; createdBy: string; replyPolicy: ReplyPolicy; speakingPrompt: string };
@@ -38,6 +39,64 @@ const encryptSecret = (plain: string, key: Buffer) => {
   return Buffer.concat([nonce, cipher.getAuthTag(), payload]).toString("base64");
 };
 const json = (data: unknown, status = 200) => Response.json(data, { status });
+
+/**
+ * 每次尝试都重建内部群聊请求。
+ *
+ * Request 的 body 是只能消费一次的流：把构造好的实例传给 withRetry 复用后，第二次起服务端
+ * `request.json()` 会失败并回退成空对象，于是按 200 空响应返回——重试「看似成功但什么都没有」，
+ * 比直接失败更难排查（表现为快思考判定失败、慢思考只回一句「我需要更多信息」）。
+ * 因此重试的每一步都要新建 Request，工具挂载也随之补挂到新实例上。
+ */
+function replayableRequest(build: () => Request, attach?: (request: Request) => void | Promise<void>): () => Promise<Request> {
+  return async () => {
+    const request = build();
+    await attach?.(request);
+    return markInternalCoworkRequest(request);
+  };
+}
+
+/**
+ * 内部群聊调用的响应校验：非 SSE 响应一律按失败处理。
+ *
+ * 模型端点的成功响应是 text/event-stream；若拿到 200 的纯文本（例如空 body 被解析后返回的
+ * “请先输入内容。”），继续按成功读取只会得到空答复，最后变成误导性的「我需要更多信息才能继续」。
+ * 把它当成可重试失败，才能真正暴露原因。
+ */
+async function expectStream(res: Response, label: string): Promise<void> {
+  if (!res.ok || !res.body) throw new RetryableError(`${label} (${res.status})`);
+  const type = res.headers.get("content-type") ?? "";
+  if (type && !type.includes("text/event-stream")) {
+    const detail = await res.text().catch(() => "");
+    throw new RetryableError(`${label}：${detail.trim().slice(0, 160) || `服务端返回了非流式响应 (${res.status})`}`);
+  }
+}
+
+/**
+ * 解析群 AI 实际要用的模型。
+ *
+ * 群设置里可能保存着服务端已经下线的模型（免费渠道模型下线是常态）。直接透传给 /api/chat 会让
+ * 每一次快思考、复核、慢思考都拿到 400「模型当前不可用」，整群 AI 退化成空答复。
+ * 这里按服务端真实可用目录兜底，保证群聊还能工作；降级写日志，便于发现设置里的失效选项。
+ */
+async function resolveCoworkModel(mode: string, configured: string | null | undefined, sessionId: string, runId: string): Promise<string | undefined> {
+  const wanted = configured?.trim();
+  if (!wanted || mode !== "codebuddy") return wanted || undefined;
+  // 关闭模型选择时服务端会固定模型并忽略请求体里的 model，不必再校验。
+  if (!isModelSelectEnabled()) return undefined;
+  try {
+    const models = await getConfiguredCodeBuddyModels();
+    const ids = models.map((option) => typeof option === "string" ? option : option.id);
+    if (!ids.length || ids.includes(wanted)) return wanted;
+    const preferred = getDefaultModel();
+    const fallback = ids.includes(preferred) ? preferred : ids[0];
+    slog(sessionId, "cowork.model.fallback", { runId, configured: wanted, fallback }, "warn", 1000000);
+    return fallback;
+  } catch {
+    // 拉取目录失败时保持原样：让 /api/chat 给出它自己的错误，避免在本地吞掉真实原因。
+    return wanted;
+  }
+}
 const cleanTitle = (value: unknown) => typeof value === "string" && value.trim() ? value.trim().slice(0, 80) : AI_DISPLAY_NAME;
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 const defaultFastPrompt = "明确要求 AI 回答或做事时必须回应。单独说“大家好”或群聊开场说“Hi”“你好”时礼貌简短回应。适时发言要克制：没有点名或明确邀请 AI 的普通问句，优先理解为对群成员说的，不要代答；即使 AI 知道答案，也不代表轮到 AI 发言。仅发现会影响当前讨论的明显误解、关键遗漏或卡住的决策时，才主动用一两句澄清。无需深度推理或工具的任务直接答复，完整保留回答内容；不能按输出长短决定是否交给慢思考。";
@@ -678,14 +737,14 @@ export function createCoworkHandlers(agent: AgentRoute) {
     const enhanceSystem = `你是群成员 ${name} 的伴聊“Chatmate”。下面给出了整个聊天上下文。请审视 ${name} 即将发送的草稿消息，找出纰漏：与上下文矛盾的内容、过时信息、遗漏的关键点、可补充的相关上下文、表达不清之处。输出改进后的文本：保持 ${name} 的原意、语气与第一人称，不要大改，不要替 ${name} 做超出草稿意图的扩展。若草稿已完善，允许小幅润色。改进后的文本一律用纯文本，不使用任何 Markdown 语法（不加粗、不写标题、不用列表符号或代码块），像人发的消息。只输出 JSON：{"text":"改进后的文本"}。JSON 外不要输出文字。`;
     const url = new URL(request.url);
     url.pathname = url.pathname.replace(/\/api\/cowork\/[^/]+\/[^/]+$/, "/api/chat");
-    const enhanceRequest = new Request(url, { method: "POST", headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" },
-      body: JSON.stringify({ messages: [{ role: "system", content: enhanceSystem }, ...messages, { role: "user", content: `[我的草稿] ${text}` }],
-        sessionId: `${chatmateSessionId(sessionId, userSub)}_enhance_${Date.now()}`, cowork: true, coworkChatmate: true,
-        coworkAttachmentSessionId: sessionId, resume: false, agentMode: mode, model: config.cowork_model ?? undefined, codexModelKey: config.cowork_codex_model ?? undefined }) });
+    const enhanceBody = JSON.stringify({ messages: [{ role: "system", content: enhanceSystem }, ...messages, { role: "user", content: `[我的草稿] ${text}` }],
+      sessionId: `${chatmateSessionId(sessionId, userSub)}_enhance_${Date.now()}`, cowork: true, coworkChatmate: true,
+      coworkAttachmentSessionId: sessionId, resume: false, agentMode: mode, model: config.cowork_model ?? undefined, codexModelKey: config.cowork_codex_model ?? undefined });
+    const nextEnhanceRequest = replayableRequest(() => new Request(url, { method: "POST", headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" }, body: enhanceBody }));
     slog(sessionId, "cowork.chatmate.enhance.start", { text: text.slice(0, 120) }, "info");
     const enhanceResponse = await withRetry(async () => {
-      const res = await agent.POST(markInternalCoworkRequest(enhanceRequest), { params: { agent: ["chat"] } });
-      if (!res.ok || !res.body) throw new RetryableError(`草稿审视请求失败 (${res.status})`);
+      const res = await agent.POST(await nextEnhanceRequest(), { params: { agent: ["chat"] } });
+      await expectStream(res, "草稿审视请求失败");
       return res;
     }, retryPolicy("low", {
       onRetry: (attempt, error, delayMs) => slog(sessionId, "cowork.chatmate.enhance.retry", { attempt, error: error instanceof Error ? error.message : String(error), delayMs }, "warn"),
@@ -917,16 +976,16 @@ ${fastIsAiMessage
   ? `${aiTitle} 的消息一般不需要你回应。除非这是影响 ${name} 的重大问题（例如：AI 声称已完成但实际未完成、AI 承诺 ${name} 的任务失败或出错、存在重要事实错误、需要 ${name} 立即行动的紧急事项），否则一律选 skip。只有确认是重大问题才选 reply 或 slow。`
   : `判断这一轮是否需要 ${name} 出面：a) 无需回复、仅需表情、与 ${name} 无关或 AI 已妥善处理 → skip；b) 可以直接简短回复 → reply 并给出回复文本；c) 需要研究、查证、制作方案或耗时核查，或消息明确请求 ${name} 处理 → slow。若消息明确是在 @ 其他群成员或 @/点名 ${aiTitle} 说话（没有 @${name}），说明用户是在对别人讲，一律选 skip，不要替别人或 ${aiTitle} 回复。`}
 只输出 JSON：{"decision":"skip|reply|slow","reply":"仅 decision=reply 时填写可直接发到群里的第一人称回复","ack":"仅 decision=slow 时填写的先行占位文本（如“收到，我来看看。”），可为空","reasoning":"私下的简短判断"}。reply、ack、reasoning 都用纯文本，不使用任何 Markdown 语法（不加粗、不写标题、不用列表符号或代码块），像人发的消息。若触发消息 @${name} 或明确点名 ${name}，reply 开头要 @ 对方成员名字（如 @张三 ）。JSON 外不要输出文字。`;
-    const fastRequest = new Request(url, { method: "POST", signal, headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" },
-      body: JSON.stringify({ messages: [{ role: "system", content: fastSystem }, ...history.slice(-14)], sessionId: `${chatmateSessionId(sessionId, userSub)}_fast_${id.replaceAll("-", "")}`,
-        cowork: true, coworkChatmate: true, coworkAttachmentSessionId: sessionId, resume: false, agentMode: mode,
-        model: config.cowork_model ?? undefined, codexModelKey: config.cowork_codex_model ?? undefined }) });
+    const chatmateFastBody = JSON.stringify({ messages: [{ role: "system", content: fastSystem }, ...history.slice(-14)], sessionId: `${chatmateSessionId(sessionId, userSub)}_fast_${id.replaceAll("-", "")}`,
+      cowork: true, coworkChatmate: true, coworkAttachmentSessionId: sessionId, resume: false, agentMode: mode,
+      model: config.cowork_model ?? undefined, codexModelKey: config.cowork_codex_model ?? undefined });
+    const nextChatmateFastRequest = replayableRequest(() => new Request(url, { method: "POST", signal, headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" }, body: chatmateFastBody }));
     let fastDecision: { decision: "skip" | "reply" | "slow"; reply?: string; ack?: string } | null = null;
     try {
       slog(sessionId, "cowork.chatmate.fast.start", { id, messageId, isAiMessage: fastIsAiMessage }, "info");
       const fastResponse = await withRetry(async () => {
-        const res = await agent.POST(markInternalCoworkRequest(fastRequest), { params: { agent: ["chat"] } });
-        if (!res.ok || !res.body) throw new RetryableError(`伴聊快思考请求失败 (${res.status})`);
+        const res = await agent.POST(await nextChatmateFastRequest(), { params: { agent: ["chat"] } });
+        await expectStream(res, "伴聊快思考请求失败");
         return res;
       }, retryPolicy("low", {
         onRetry: (attempt, error, delayMs) => slog(sessionId, "cowork.chatmate.fast.retry", { id, attempt, error: error instanceof Error ? error.message : String(error), delayMs }, "warn"),
@@ -982,15 +1041,15 @@ ${fastIsAiMessage
       // 手动触发（强制慢思考）：跳过快思考分流，直接发占位再进主请求
       try { await postChatmateUpdate(request, sessionId, userSub, id, 0, "收到，我来看看。", messageId, "ack"); } catch { /* 占位失败不阻塞主流程 */ }
     }
-    const chatRequest = new Request(url, { method: "POST", signal, headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" },
-      body: JSON.stringify({ messages: resume ? [{ role: "system", content: system }, history.at(-1)!] : [{ role: "system", content: system }, ...history], sessionId: chatmateSessionId(sessionId, userSub),
-        cowork: true, coworkChatmate: true, coworkAttachmentSessionId: sessionId, attachments: readableAttachments,
-        resume, agentMode: mode, model: config.cowork_model ?? undefined, codexModelKey: config.cowork_codex_model ?? undefined }) });
+    const chatmateBody = JSON.stringify({ messages: resume ? [{ role: "system", content: system }, history.at(-1)!] : [{ role: "system", content: system }, ...history], sessionId: chatmateSessionId(sessionId, userSub),
+      cowork: true, coworkChatmate: true, coworkAttachmentSessionId: sessionId, attachments: readableAttachments,
+      resume, agentMode: mode, model: config.cowork_model ?? undefined, codexModelKey: config.cowork_codex_model ?? undefined });
+    const nextChatmateRequest = replayableRequest(() => new Request(url, { method: "POST", signal, headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" }, body: chatmateBody }));
     slog(sessionId, "cowork.chatmate.start", { id, messageId, userSub, resume, attachments: readableAttachments.map(item => item.name), images: images.length }, "info");
     // 伴聊建议生成重试（low=1 次）：HTTP 失败/流中断时重发一次
     const response = await withRetry(async () => {
-      const res = await agent.POST(markInternalCoworkRequest(chatRequest), { params: { agent: ["chat"] } });
-      if (!res.ok || !res.body) throw new RetryableError(`伴聊请求失败 (${res.status})`);
+      const res = await agent.POST(await nextChatmateRequest(), { params: { agent: ["chat"] } });
+      await expectStream(res, "伴聊请求失败");
       return res;
     }, retryPolicy("low", {
       onRetry: (attempt, error, delayMs) => slog(sessionId, "cowork.chatmate.retry", { id, attempt, error: error instanceof Error ? error.message : String(error), delayMs }, "warn"),
@@ -1060,15 +1119,15 @@ ${fastIsAiMessage
       try {
         const taskSystem = `你就是群成员 ${name}。请现在完成指定的单项研究任务。阅读提供的群聊上下文和附件，必要时使用网页工具查证，不要等待用户。只输出 JSON：{"outcome":"complete | ask_group | stop","finding":"具体发现和证据；受阻时写已知事实和信息缺口","update":"完成时从我第一人称给群里的实质进展","reason":"受阻时说明缺少什么以及为何不能继续","question":"仅当群成员很可能知道关键信息时，写一个具体问题"}。能独立查到的先查；确实缺少必需信息才受阻。群成员可能知道就用 ask_group，问一次后停止本轮任务；群成员也不大可能知道就用 stop，自行停止且不要追问。不要把猜测写成发现，默认不加 emoji。`;
         const taskPrompt = `任务 ${index + 1}/${tasks.length}：${tasks[index].title}\n${tasks[index].instruction}\n之前已完成的发现：${findings.join("\n") || "无"}`;
-        const taskRequest = new Request(url, { method: "POST", signal, headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" },
-          body: JSON.stringify({ messages: [{ role: "system", content: taskSystem }, ...history, { role: "user", content: taskPrompt }],
-            sessionId: `${chatmateSessionId(sessionId, userSub)}_task_${id.replaceAll("-", "").slice(0, 16)}_${index}`, cowork: true, coworkChatmate: true,
-            coworkAttachmentSessionId: sessionId, attachments: readableAttachments, resume: false, agentMode: mode,
-            model: config.cowork_model ?? undefined, codexModelKey: config.cowork_codex_model ?? undefined }) });
+        const taskBody = JSON.stringify({ messages: [{ role: "system", content: taskSystem }, ...history, { role: "user", content: taskPrompt }],
+          sessionId: `${chatmateSessionId(sessionId, userSub)}_task_${id.replaceAll("-", "").slice(0, 16)}_${index}`, cowork: true, coworkChatmate: true,
+          coworkAttachmentSessionId: sessionId, attachments: readableAttachments, resume: false, agentMode: mode,
+          model: config.cowork_model ?? undefined, codexModelKey: config.cowork_codex_model ?? undefined });
+        const nextTaskRequest = replayableRequest(() => new Request(url, { method: "POST", signal, headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" }, body: taskBody }));
         // 研究任务重试（low=1 次）：HTTP 失败/流中断时重发一次
         const taskResponse = await withRetry(async () => {
-          const res = await agent.POST(markInternalCoworkRequest(taskRequest), { params: { agent: ["chat"] } });
-          if (!res.ok || !res.body) throw new RetryableError(`研究任务请求失败 (${res.status})`);
+          const res = await agent.POST(await nextTaskRequest(), { params: { agent: ["chat"] } });
+          await expectStream(res, "研究任务请求失败");
           return res;
         }, retryPolicy("low", {
           onRetry: (attempt, error, delayMs) => slog(sessionId, "cowork.chatmate.task.retry", { id, index: index + 1, attempt, error: error instanceof Error ? error.message : String(error), delayMs }, "warn"),
@@ -2189,6 +2248,8 @@ ${fastIsAiMessage
       const availableModes = getConfiguredAgentModes().filter(candidate => candidate === "codebuddy" || candidate === "codex");
       const configuredMode = String(setting.cowork_mode);
       const mode = availableModes.find(candidate => candidate === configuredMode) ?? availableModes[0] ?? "codebuddy";
+      // 群设置里的模型可能已从服务端下线：按真实可用目录兜底，避免每次思考都 400。
+      const coworkModel = await resolveCoworkModel(mode, typeof setting.cowork_model === "string" ? setting.cowork_model : null, sessionId, runId);
       const url = new URL(request.url);
       url.pathname = url.pathname.replace(/\/api\/cowork\/[^/]+\/(?:send|state)$/, "/api/chat");
       let managementMutation: { method: "POST" | "PATCH" | "DELETE"; data: unknown } | null = null;
@@ -2221,19 +2282,22 @@ ${fastIsAiMessage
       let fastReaction: { messageId?: number; emoji?: string } = {};
       let fastFailed = false;
       try {
-        const fastRequest = new Request(url, { method: "POST", headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" },
-          body: JSON.stringify({ messages: [{ role: "system", content: fastSystem }, ...modelHistory(history)], sessionId: `${sessionId}_cowork_fast_${runId.replaceAll("-", "")}`,
-            cowork: true, coworkFast: true, coworkCustomPrompt: !!customPrompt, resume: false, agentMode: "codebuddy", model: mode === "codebuddy" ? setting.cowork_model ?? undefined : undefined }) });
-        await attachManagementTools(fastRequest);
+        const fastBody = JSON.stringify({ messages: [{ role: "system", content: fastSystem }, ...modelHistory(history)], sessionId: `${sessionId}_cowork_fast_${runId.replaceAll("-", "")}`,
+          cowork: true, coworkFast: true, coworkCustomPrompt: !!customPrompt, resume: false, agentMode: "codebuddy", model: mode === "codebuddy" ? coworkModel : undefined });
+        // 每次重试都要新 Request（body 只能读一次）+ 重挂管理工具，否则第二次起会拿到空响应。
+        const nextFastRequest = replayableRequest(
+          () => new Request(url, { method: "POST", headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" }, body: fastBody }),
+          attachManagementTools,
+        );
         // 快思考重试（low=1 次）：hy3 免费渠道常出现 429 / 不按 JSON 输出，重发一次可显著提高决策成功率。
         let firstThinkingChars = 0;
         const { fastText, parsed } = await withRetry(async () => {
-          const fastResponse = await agent.POST(markInternalCoworkRequest(fastRequest), { params: { agent: ["chat"] } });
-          if (!fastResponse.ok || !fastResponse.body) throw new RetryableError(`快思考请求失败 (${fastResponse.status})`);
+          const fastResponse = await agent.POST(await nextFastRequest(), { params: { agent: ["chat"] } });
+          await expectStream(fastResponse, "快思考请求失败");
           let lastFastWrite = 0;
           firstThinkingChars = 0;
           let pendingFastWrite: Promise<unknown> = Promise.resolve();
-          const text = await readCoworkText(fastResponse.body, (event, payload, content) => {
+          const text = await readCoworkText(fastResponse.body!, (event, payload, content) => {
             if (event === "thinking" && fastPhase === "initial") firstThinkingChars += String(payload.text ?? "").length;
             if (event === "thinking" && fastPhase === "review") {
               const step = (fastSteps[Math.max(1, Number(payload.index) || 1) - 1] ??= { thinking: "" });
@@ -2312,12 +2376,12 @@ ${fastIsAiMessage
           const reviewRequest = new Request(url, { method: "POST", headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" },
             body: JSON.stringify({ messages: [{ role: "system", content: reviewSystem }, ...modelHistory(reviewHistory)], sessionId: `${sessionId}_cowork_review_${runId.replaceAll("-", "")}`,
               cowork: true, coworkFast: true, coworkFastReasoning: true, coworkCustomPrompt: !!customPrompt, coworkAttachmentSessionId: sessionId,
-              resume: false, agentMode: "codebuddy", model: mode === "codebuddy" ? setting.cowork_model ?? undefined : undefined }) });
+              resume: false, agentMode: "codebuddy", model: mode === "codebuddy" ? coworkModel : undefined }) });
           const reviewResponse = await agent.POST(markInternalCoworkRequest(reviewRequest), { params: { agent: ["chat"] } });
-          if (!reviewResponse.ok || !reviewResponse.body) throw new Error(`快思考复核失败 (${reviewResponse.status})`);
+          await expectStream(reviewResponse, "快思考复核失败");
           let lastReviewWrite = 0;
           let pendingReviewWrite: Promise<unknown> = Promise.resolve();
-          const reviewText = await readCoworkText(reviewResponse.body, (event, payload, content) => {
+          const reviewText = await readCoworkText(reviewResponse.body!, (event, payload, content) => {
             const step = () => (fastSteps[Math.max(1, Number(payload.index) || 1) - 1] ??= { thinking: "" });
             if (event === "thinking") {
               const current = step();
@@ -2426,17 +2490,20 @@ ${fastIsAiMessage
         (hostContext ? `\n\n【宿主能力上下文】\n${hostContext}` : "") +
         (customPrompt ? `\n\n【${title} 的独立提示词，决定最终回复内容与格式】\n${customPrompt.slice(0, 16000)}\n严格按此提示词回复；不要自动添加称呼、解释或其他前后缀。` : "");
       const slowMode = managementRequest ? "codebuddy" : mode;
-      const agentRequest = new Request(url, { method: "POST", headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" },
-        body: JSON.stringify({ messages: [{ role: "system", content: system }, ...modelHistory(history)], sessionId: `${sessionId}_cowork_slow_${runId.replaceAll("-", "")}`, cowork: true, coworkCustomPrompt: !!customPrompt,
-          coworkAttachmentSessionId: sessionId, coworkAgentId: selectedAgent.id, attachments: attachmentsForRun,
-          resume: false, agentMode: slowMode, model: slowMode === "codebuddy" && mode === "codebuddy" ? setting.cowork_model ?? undefined : undefined, codexModelKey: setting.cowork_codex_model ?? undefined }) });
-      await attachManagementTools(agentRequest);
+      const slowBody = JSON.stringify({ messages: [{ role: "system", content: system }, ...modelHistory(history)], sessionId: `${sessionId}_cowork_slow_${runId.replaceAll("-", "")}`, cowork: true, coworkCustomPrompt: !!customPrompt,
+        coworkAttachmentSessionId: sessionId, coworkAgentId: selectedAgent.id, attachments: attachmentsForRun,
+        resume: false, agentMode: slowMode, model: slowMode === "codebuddy" && mode === "codebuddy" ? coworkModel : undefined, codexModelKey: setting.cowork_codex_model ?? undefined });
+      // 每次重试重建 Request（body 只能消费一次），并把管理工具重挂到新实例上。
+      const nextSlowRequest = replayableRequest(
+        () => new Request(url, { method: "POST", headers: { "content-type": "application/json", cookie: request.headers.get("cookie") ?? "" }, body: slowBody }),
+        attachManagementTools,
+      );
       // 慢思考重试（high=最多 3 次重试）：hy3 免费渠道 429 / 5xx / 流中断频繁，
       // 产出型调用值得等待重试；每次尝试从零重建流，answer/steps 重置避免累积。
       const slowText = await withRetry(async () => {
-        const response = await agent.POST(markInternalCoworkRequest(agentRequest), { params: { agent: ["chat"] } });
-        if (!response.ok || !response.body) throw new RetryableError(`模型请求失败 (${response.status})`);
-        const reader = response.body.getReader();
+        const response = await agent.POST(await nextSlowRequest(), { params: { agent: ["chat"] } });
+        await expectStream(response, "模型请求失败");
+        const reader = response.body!.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
         let lastWrite = 0;
@@ -2520,7 +2587,8 @@ ${fastIsAiMessage
       }));
       answer = slowText;
       if (managementRequest && !managementMutation) answer = "群 AI 尚未创建或修改成功。请由群管理员重试；我不能在未完成操作时声称已创建。";
-      answer = !answer || answer.startsWith("<SILENT>") ? "我需要更多信息才能继续，你希望我先处理哪一部分？" : answer;
+      // 慢思考不该输出 <SILENT>，流正常结束却没有正文只能说明这轮没产出：如实说明，不要伪装成"在问你更多信息"。
+      answer = !answer || answer.startsWith("<SILENT>") ? "这轮没有生成有效回复（模型未返回内容），请重试一次或换个更具体的说法。" : answer;
       // 被点名时答复 @ 对方：确保回复以 @名字 开头（模型可能漏写，服务端兜底）
       const replyTargetRow = mustReply ? rows.rows.find(r => Number(r.id) === replyTargetId) : null;
       answer = ensureReplyMention(answer, String(replyTargetRow?.sender_name ?? ""), !!replyTargetRow && !customPrompt);

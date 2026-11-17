@@ -18,6 +18,7 @@ import {
   createVoiceTokenHandler, createVoiceTranscribeHandler, summarizeSessionTitle,
   type AgentMode, type AgentMessage,
 } from "@turingflow/agent-kit";
+import { proxyCloudArtifact } from "./cloud-artifact-proxy.js";
 import { parseMemoryUpsertArguments } from "./memory-tool-input.js";
 import { CAPABILITY_INTRO_SYSTEM_PROMPT, CAPABILITY_LIST } from "./capability-intro.js";
 import type { LocalReference, LocalReferenceStore } from "./local-references.js";
@@ -103,14 +104,23 @@ async function sendWebResponse(response: http.ServerResponse, result: Response):
  *   /chat/steer      运行中会话插话
  *   /chat/browser-answer  浏览器接管答案
  *   /artifact        会话产物目录读写（落到 <userData>/artifacts/<sid>）
+ *   /artifact-cloud  云端会话（群聊/人聊）产物转发：原样转给 Web 服务 /api/artifact，主进程注入登录 Cookie
  *   /file-ref        本机文件引用（local-ref://）的字节读取，供渲染层预览图片/文件
  *   /api/voice/token、/api/voice/transcribe  语音听写（复用 kit 端点工厂，ASR 由环境变量决定）
  * 供渲染层 AgentWindow/AgentApp 的 chatEndpoint/artifactEndpoint 复用 kit 完整能力。
  */
+
 export async function startLocalAgentServer(
   artifactRoot: string,
   refs: LocalReferenceStore,
-  options?: { memoryEnabled?: () => boolean; recallMemory?: (query: string) => Promise<unknown>; traceMemoryTurn?: (event: Record<string, unknown>) => void; upsertMemory?: (input: { source: string; description: string; entityIds: number[]; newEntities: Array<{ name: string; type: string }>; replacesFactId?: number; expectedDescription?: string; operationId: string }) => Promise<unknown>; onAutoTitle?: (sid: string, title: string, owner?: string) => void; onProviderUnavailable?: (provider: "workbuddy" | "codex" | "dsh") => void },
+  options?: { memoryEnabled?: () => boolean; recallMemory?: (query: string) => Promise<unknown>; traceMemoryTurn?: (event: Record<string, unknown>) => void; upsertMemory?: (input: { source: string; description: string; entityIds: number[]; newEntities: Array<{ name: string; type: string }>; replacesFactId?: number; expectedDescription?: string; operationId: string }) => Promise<unknown>; onAutoTitle?: (sid: string, title: string, owner?: string) => void; onProviderUnavailable?: (provider: "workbuddy" | "codex" | "dsh") => void;
+    /**
+     * 云端产物转发（群聊 / 人聊这类跑在 Web 服务的会话）：
+     * 产物由服务端写在 Web 服务的存储根，本机 agent 的 artifactRoot 里永远没有这些文件。
+     * 渲染层直连云端时，`<img>` / iframe / `<a download>` 这些原生请求带不上跨站 Cookie
+     * （SameSite=Lax），所以由本机服务转发：baseUrl 给 Web 服务根，cookie 给登录态 Cookie 头。
+     */
+    cloudArtifact?: { baseUrl: () => string | null; cookie: () => Promise<string> } },
 ): Promise<{ url: string; close: () => Promise<void> }> {
   const onAutoTitle = options?.onAutoTitle;
   fs.mkdirSync(artifactRoot, { recursive: true });
@@ -378,6 +388,10 @@ export async function startLocalAgentServer(
       }
       if (request.method === "POST" && url.pathname === "/api/voice/transcribe") {
         await sendWebResponse(response, await voiceTranscribe.POST(toWebRequest(request)));
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/artifact-cloud") {
+        await proxyCloudArtifact(request, response, url, options?.cloudArtifact);
         return;
       }
       if (request.method === "GET" && url.pathname === "/artifact") {

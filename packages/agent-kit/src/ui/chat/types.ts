@@ -321,7 +321,7 @@ export interface AgentWindowProps {
   initialUser?: ChatUser;
   /** API 根路径，如 /agent；产物预览/上传/会话等端点都基于它 */
   basePath?: string;
-  /** 场景列表；不传用 DEFAULT_SCENES，传 null 隐藏场景 tab（含空态建议） */
+  /** 场景列表；不传则不展示场景（传 null 隐藏场景 tab 与空态建议） */
   scenes?: Scene[] | null;
   /** 退出登录回调（宿主接管时不再调 /api/logout 跳转） */
   onLogout?: () => void | Promise<void>;
@@ -329,6 +329,18 @@ export interface AgentWindowProps {
   chatEndpoint?: string;
   /** 桌面端本机产物端点覆盖（默认 basePath/api/artifact） */
   artifactEndpoint?: string;
+  /**
+   * 云端会话（群聊 / 人聊这类跑在 Web 服务的会话）的产物端点覆盖。
+   *
+   * 群聊的产物是**服务端**（Web 服务存储根）写出来的，本机 agent 的存储根里没有这些文件；
+   * 而桌面壳的渲染层直连云端时，`<img>` / iframe / 下载链接这类原生请求带不上 Cookie
+   * （跨站 SameSite=Lax 不发送）。所以由宿主提供一个「本机已带登录态的转发端点」
+   * （apps/desktop 的 /artifact-cloud），前端在群聊会话下改用它，
+   * 请求仍走同源本机地址，Cookie 由宿主主进程注入。
+   *
+   * 不传时（Web 同源部署）自动回落 basePath/api/artifact，行为不变。
+   */
+  cloudArtifactEndpoint?: string;
   /** 上传端点覆盖（默认 basePath/api/upload） */
   uploadEndpoint?: string;
   /** 是否启用语音输入（按住语音键录音转写的总开关，含输入框常驻麦克风按钮）。 */

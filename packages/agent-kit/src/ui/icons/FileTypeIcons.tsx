@@ -101,9 +101,13 @@ function ArchiveGlyph() {
   );
 }
 
-/** 文本/代码：文档页 + 文字行。 */
-function TextGlyph() {
-  return <DocPage><path d="M8.5 12.5h7M8.5 16h5" /></DocPage>;
+/** 代码/文本：文档页 + 克制的小号尖括号（</>）。四周留白，与其他文件图标同一视觉语言。 */
+function CodeGlyph() {
+  return (
+    <DocPage>
+      <path d="M8.3 12.4 6.1 14.6l2.2 2.2M13.7 12.4l2.2 2.2-2.2 2.2M11.8 11.8l-1.6 5.6" />
+    </DocPage>
+  );
 }
 
 export default function FileTypeIcon({ name, kind }: { name?: string; kind?: string }) {
@@ -113,7 +117,7 @@ export default function FileTypeIcon({ name, kind }: { name?: string; kind?: str
   if (t === "excel") return <ExcelGlyph />;
   if (t === "pdf") return <PdfGlyph />;
   if (t === "archive") return <ArchiveGlyph />;
-  if (t === "text") return <TextGlyph />;
+  if (t === "text") return <CodeGlyph />;
   if (t === "image") return <ImageIcon />;
   if (t === "video") return <VideoIcon />;
   if (t === "audio") return <AudioIcon />;

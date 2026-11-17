@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type MouseEvent } from "react";
-import { ASSISTANT_NAME, CHAT_MIN_WIDTH, summarizeForNotify } from "@turingflow/agent-kit/ui";
+import { ASSISTANT_NAME, CHAT_MIN_WIDTH, LEFT_PANE_WIDTH, summarizeForNotify } from "@turingflow/agent-kit/ui";
 import { useLauncher, isHomeChatWindow } from "../state";
 import { isArtifactFileDrag, readDraggedFiles, toLocalAttachments } from "../fileDrop";
 import { wallpaperSkinId } from "../wallpapers";
@@ -100,7 +100,8 @@ export default function QuickInput({ onTextPresenceChange, onContentPresenceChan
    *   收起 → windowInc 归 0，chat 回到基准宽；
    *   拖窗口右边框 → 两个值同步加减，chat 始终不动。
    */
-  const [rightWidth, setRightWidth] = useState(340);
+  // 右栏默认展开宽度 = 左栏（对话列表）宽度：产物预览不抢中栏的空间，需要更宽时用户自己拖。
+  const [rightWidth, setRightWidth] = useState(LEFT_PANE_WIDTH);
   const [windowInc, setWindowInc] = useState(0);
   const [rightOpen, setRightOpen] = useState(false);
   /**
@@ -357,6 +358,9 @@ export default function QuickInput({ onTextPresenceChange, onContentPresenceChan
           layoutMode={maximized ? "fixed" : "grow"}
           chatEndpoint={localAgentUrl(localHostUrl, "/chat")}
           artifactEndpoint={localAgentUrl(localHostUrl, "/artifact")}
+          /* 群聊/人聊这类云端会话：产物在 Web 服务存储根里，走本机转发端点（主进程注入登录 Cookie），
+             直连云端的 img/iframe/下载会因跨站 Cookie 缺失 403。本地 AI 会话不受影响。 */
+          cloudArtifactEndpoint={cloud ? localAgentUrl(localHostUrl, "/artifact-cloud") : undefined}
           scenes={null}
           models={state.models}
           modelsLoading={state.modelsLoading}

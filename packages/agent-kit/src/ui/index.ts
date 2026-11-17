@@ -8,9 +8,9 @@
  * 快速开始（一站式）：<AgentApp basePath="/linger" title="AI 助手" />
  * 高级用法：<AgentChat {...props} /> + <LoginPage /> + useAgentAuth() 自行拼装。
  */
-export { default as AgentWindow, DEFAULT_SCENES } from "./AgentWindow.tsx";
+export { default as AgentWindow } from "./AgentWindow.tsx";
 export { default as CustomModels, desktopModels } from "./components/CustomModels.tsx";
-export { CHAT_MIN_WIDTH } from "./shared/layout.ts";
+export { CHAT_MIN_WIDTH, LEFT_PANE_WIDTH } from "./shared/layout.ts";
 export { openWorkPanelSurface, recordSessionWorkflow } from "./chat/workPanel.ts";
 export { useAppFullscreen } from "./components/FullscreenContext.tsx";
 export type { AppFullscreen } from "./components/FullscreenContext.tsx";

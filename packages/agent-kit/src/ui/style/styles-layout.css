@@ -39,7 +39,7 @@
   background: var(--sidebar-bg);
 }
 /* 右栏：上半输入文件 / 下半输出产物；默认收起。拖动改宽时用 --right-w 覆盖基础宽度。
-   展开默认与中间消息区平分剩余水平宽度（50%）。
+   展开默认宽度 = 左栏（对话列表）宽度 280px：产物预览不抢中栏空间，嫌窄可自己拖宽。
    收起态不画左边框（border-box 下 1px 边框仍占位）：任何布局模式、任何窗口宽度下，
    右栏未打开都不该在聊天区右侧漏出这条竖线。展开（.is-open）时恢复边框。 */
 .chat-pane-right { flex: 0 0 0; overflow: hidden; transition: flex-basis .18s ease; border-left: 1px solid var(--line); position: relative; }
@@ -47,7 +47,7 @@
 /* 右栏宽上限 = 容器宽 − 左栏实际占用(var(--left-used)：开 280px / 关 0px) − 中栏最小宽(375)：
    拖宽右栏可以把中间 chat 一直压到 375px 最小宽；与 JS 拖拽侧（LEFT_PANE_W / CHAT_MIN_W）同源，双保险。
    窗口极窄时 calc 为负 → flex-basis 按 0 处理。 */
-.chat-pane-right.is-open { flex-basis: min(var(--right-w, 50%), calc(100% - var(--left-used, 280px) - 375px)); }
+.chat-pane-right.is-open { flex-basis: min(var(--right-w, 280px), calc(100% - var(--left-used, 280px) - 375px)); }
 .chat-pane-right.is-dragging { transition: none; }
 .chat-pane-right:not(.is-open) .chat-right-inner { visibility: hidden; }
 /* OS-style host: preserve the middle pane's frame and add side-panel width around it. */
@@ -113,14 +113,20 @@
   display: flex; flex-direction: column;
   background: var(--right-bg);
 }
-/* tab 行底部满宽分割线（tab 内容区本身收窄，避免压到悬浮的侧边栏 toggle） */
+/* tab 行底部满宽分割线（tab 内容区本身收窄，避免压到悬浮的侧边栏 toggle）。
+   z-index 提到 5：产物列表的工具栏是 position:sticky; z-index:3 且自带不透明背景、
+   顶边正好压在 tab 行下缘，不加层级的话这条 1px 线会被它盖掉。 */
 .chat-right-inner::after {
   content: ""; position: absolute; top: 46px; left: 0; right: 0; height: 1px; background: var(--line);
-  pointer-events: none;
+  pointer-events: none; z-index: 5;
 }
+/* tab 行高度必须是确定的 46px：下面 .chat-right-inner::after 的分割线写死在 top:46px，
+   若让高度由内容决定（36px 的「+」+ 上下 6px 内边距 = 48px），行高会比分割线多 2px，
+   tab 就会整体比视觉格子中心低 1px。固定 height + 5px 内边距让 36px 的「+」刚好占满，
+   align-items:center 再算出的居中就是相对 46px 格子本身的居中。 */
 .work-panel-tabs {
   flex: 0 0 auto; display: flex; align-items: center; gap: 3px;
-  min-height: 46px; padding: 6px 12px; overflow-x: auto; scrollbar-width: thin;
+  height: 46px; padding: 5px 12px; overflow-x: auto; scrollbar-width: thin;
   background: var(--right-bg);
 }
 /* tab 行分割线由 .chat-right-inner::after 满宽绘制（tab 内容区收窄，不与悬浮 toggle 重叠） */
@@ -138,7 +144,11 @@
 .work-panel-tab-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .work-panel-tab-icon img { display: block; width: 18px; height: 18px; border-radius: 4px; object-fit: cover; }
 .work-panel-tab[aria-selected="true"] { color: var(--brand); font-weight: 600; }
-.work-panel-tab-close { flex: 0 0 auto; width: 22px; height: 24px; padding: 0; border-radius: 5px; font-size: 18px; line-height: 1; }
+/* 关闭按钮：叉号改用 SVG（几何图形，天然居中），不再依赖字体 × 的基线定位——
+   字体 × 的墨迹落在数学轴附近，比行盒中心低约 1.7px，视觉上明显偏下。
+   inline-flex 居中让 16px 的叉号在 22×24 的圆角盒里严格同心。 */
+.work-panel-tab-close { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 24px; padding: 0; border-radius: 5px; }
+.work-panel-tab-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .work-panel-tab-close:hover, .work-panel-add:hover { background: var(--hover-strong); color: var(--ink); }
 .work-panel-tab-wrap[draggable="true"] { cursor: grab; }
 .work-panel-tab-wrap[draggable="true"]:active { cursor: grabbing; }

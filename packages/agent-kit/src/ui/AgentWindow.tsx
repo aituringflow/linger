@@ -9,10 +9,9 @@ import { ChatLocaleProvider, useChatTranslation } from "./chat/i18n.tsx";
 // 宿主只需 <AgentChat basePath="/your-app" scenes={...} /> 即可使用。
 // 图片附件发送时自动转 base64 随消息传给 /api/chat（模型多模态识别）。
 
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ChangeEvent, type DragEvent as ReactDragEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
 import { createPortal } from "react-dom";
 import { useClickOutside } from "./useClickOutside.ts";
-import Markdown from "./components/Markdown.tsx";
 import ConversationPanel from "./panel/ConversationPanel.tsx";
 import SessionSearchPanel, { type SessionSearchPersonRow } from "./components/SessionSearchPanel.tsx";
 import UserMenu from "./components/UserMenu.tsx";
@@ -29,15 +28,14 @@ import OperationPanel, {  CHAT_LINK_OPEN_EVENT, fileArtifactType } from "./panel
 import type { CoworkMonologue } from "./components/CoworkPanel.tsx";
 import { relativeTime } from "./shared/relativeTime.ts";
 import { apiFetch } from "./shared/apiFetch.ts";
-import { CHAT_MIN_WIDTH } from "./shared/layout.ts";
+import { CHAT_MIN_WIDTH, LEFT_PANE_WIDTH } from "./shared/layout.ts";
 import { resolveAttachmentUrl } from "./shared/attachmentUrl.ts";
 import { getConnectionState, isServerOnline, subscribeConnection } from "./shared/connectionStatus.ts";
-import { Avatar } from "./shared/AvatarView.tsx";
 import { realtimeClient } from "./shared/realtime.ts";
 import { buildCapabilitiesContext, dispatchCapabilityReply, toCapMessages } from "./capabilities/index.tsx";
 import { ensureWebPushSubscription, installPushProbe, removeWebPushSubscription } from "./shared/webPush.ts";
 import { playNotificationSound, syncNotificationSoundForPush } from "./shared/notificationSound.ts";
-import ChatComposer, { type ChatComposerHandle } from "./components/ChatComposer.tsx";
+import { type ChatComposerHandle } from "./components/ChatComposer.tsx";
 import ContactPickerDialog from "./components/ContactPickerDialog.tsx";
 import ShareToChatDialog from "./components/ShareToChatDialog.tsx";
 
@@ -85,7 +83,7 @@ import {
   writeLastSession,
   clearLastSession,
 } from "./shared/uiPrefs.ts";
-import type { ArtifactType, ArtifactMeta, Scene, SceneSuggestion, ChatUser, ChatUserRole, AgentWindowProps, ComposerReference, UiAttachment, UiImage, UiVoiceRecording, UiQuestionOption, UiQuestion, UiTool, UiStep, BrowserStepData, ModelInfo, UiMessage, QueueItem, RtState, SessionItem, GroupRef, SessionCardSnapshot } from "./chat/types.ts";
+import type { ArtifactType, ArtifactMeta, SceneSuggestion, AgentWindowProps, ComposerReference, UiAttachment, UiImage, UiVoiceRecording, UiQuestion, UiTool, UiStep, ModelInfo, UiMessage, QueueItem, RtState, SessionItem, GroupRef, SessionCardSnapshot } from "./chat/types.ts";
 export type { ArtifactType, ArtifactMeta, Scene, ChatUser, ChatUserRole, AgentWindowProps, ComposerReference, ComposerReferenceSource, UiAttachment, UiImage, UiQuestionOption, UiQuestion, UiTool, UiStep, BrowserStepData, ModelInfo, UiMessage, QueueItem, RtState, SessionItem, GroupRef, SessionCardSnapshot } from "./chat/types.ts";
 import { readAgentMode, saveAgentMode } from "./chat/agentModePreference.ts";
 import { modelListSnapshot, fetchModelList, clearModelListSnapshot, type ModelListSnapshot } from "./chat/modelList.ts";
@@ -94,20 +92,14 @@ import {  isImageFile, isLikelyNonVisionModel, generateSessionId, parseSseFrame 
 import { browserCdp } from "./chat/browserCdp.ts";
 import { openWorkPanelSurface, type SessionWorkflow, type WorkPanelSurface } from "./chat/workPanel.ts";
 
-import QuestionCard from "./chat/QuestionCard.tsx";
 import { CheckIcon } from "./icons/SharedIcons.tsx";
-import { ContextMeterIcon } from "./icons/DynamicIcons.tsx";
 import { isInvalidGeneratedTitle } from "./chat/modelList.ts";
 import { fileToBase64, messagePreviewText } from "./chat/messageUtils.ts";
 import { IS_ELECTRON, AGENT_HOST, canPickWorkspace } from "./chat/platform.ts";
-import { compactTokens, contextUsedTokens } from "./chat/usage.ts";
+import { contextUsedTokens } from "./chat/usage.ts";
 import { useVoiceDictation, createDictationTranscriber, type VoiceTranscriber, type VoiceDictationError } from "@summersmile/voice-dictation";
 import { createTencentRealtimeRecorder, type RealtimeRecorderHandle } from "./chat/tencentRealtimeRecorder.ts";
 import { ChatSessionContext } from "./chatSession.tsx";
-// ==================== 类型定义 ====================
-
-/** SSE 帧数据：服务端自由字段，按事件类型取用 */
-type SseData = Record<string, any>;
 
 /**
  * @ 命中规则，与服务端保持同一口径（cowork.ts explicitlyMentioned / db.ts messageMentionsMe）：
@@ -177,13 +169,7 @@ const STREAM_TICK_MS = 32;
 // 中栏真正的最小宽度（正常手机宽度）与左栏固定宽：右栏拖拽/初始宽度都不能把中间 chat 挤到其下。
 // 与 styles.css 的 .chat-main min-width、.chat-pane-right flex-basis 上限保持一致。
 const CHAT_MIN_W = CHAT_MIN_WIDTH;
-const LEFT_PANE_W = 280;
-/** 原地编辑用户消息时的宽度下限（px）。
- *  编辑框宽度原则 =原气泡宽度（与编辑前同宽），但短消息（如"Hi"）的气泡本身很窄，
- *  直接沿用会把底部「提示语 + 取消/发送」按钮挤成竖排一字一行。故设下限，
- *  取能舒展放下底部元素（约 420px：提示语 + 两个按钮 + 换行余量）的经验值。
- *  与 styles.css 里 .msg.user.is-editing 的 min-width 保持一致。 */
-const EDIT_MIN_WIDTH = 420;
+const LEFT_PANE_W = LEFT_PANE_WIDTH;
 // 主导航栏（图标侧栏）拖拽折叠：展开态拖右缘往左，假想宽度低于阈值即折叠为纯图标；
 // 折叠态往右拖越过阈值即恢复展开。拖拽只做过阈值切换，不自由调宽、不单独持久化宽度。
 // 折叠固定 52px（见 styles-navigation.css .agent-navigation-sidebar 默认宽），展开宽回落 prop/默认 200。
@@ -192,85 +178,6 @@ const NAV_COLLAPSED_W = 52;
 const NAV_DEFAULT_W = 200;
 // 与参考工程完全一致：单次最长 10 分钟，超时自动转写。
 const MAX_RECORDING_MS = 10 * 60 * 1000;
-
-// 清洗助手文本里的限流噪音（显示层兜底，覆盖已存的脏历史）：
-//  - CLI transcript 会给消息加 trace 前缀（(32hex/uuid)），剥离前缀、保留正文；
-//  - 429 频率限制错误整段（可能带 trace 前缀/后缀）直接丢弃，不展示给用户。
-
-/** 上下文容量环形指示（输入框右侧、模型名左侧，对标 WorkBuddy）：
- *  已用 = 最新一轮 result.usage.input_tokens（CLI 每次请求发送全量上下文，近似当前上下文大小）；
- *  上限 = /api/models/context 返回的模型上下文窗口；服务端拿不到时仍显示环（整环中性 + token 数，
- *  不显示百分比），只有完全没有用量时才不显示。
- *  三档状态色：<70% 中性绿、70-90% 警示黄、≥90% 危险红；压缩中（compact_status）呼吸闪烁。 */
-function ContextMeter({
-  usedTokens,
-  maxTokens,
-  compacting,
-  lastCompactAt,
-}: {
-  usedTokens: number | null;
-  maxTokens: number | null;
-  compacting?: boolean;
-  lastCompactAt?: number | null;
-}) {
-  const used = usedTokens ?? 0;
-  // 只在有实际用量时显示；上限未知（服务端拿不到模型窗口）时仍显示——给出 token 数与整环中性提示，
-  // 不再因为「拿不到上限」而整环消失（此前的硬隐藏是圆环显示不了的直接原因）。
-  if (used <= 0) return null;
-  const known = typeof maxTokens === "number" && maxTokens > 0;
-  const pct1 = known ? Math.min(100, (used / maxTokens) * 100) : null;
-  const pct = pct1 == null ? null : Math.round(pct1);
-  const tone = pct == null ? "neutral" : pct >= 90 ? "danger" : pct >= 70 ? "warn" : "ok";
-  const r = 7.5;
-  const circ = 2 * Math.PI * r;
-  // 上限未知：dashoffset=0 → 整环中性显示（表示"有用量、容量未知"）；已知：按比例留缺口
-  const off = pct == null ? 0 : circ * (1 - pct / 100);
-  const tipParts = [
-    pct1 != null
-      ? `上下文已使用 ${pct1.toFixed(1)}% · ${compactTokens(used)} / ${compactTokens(maxTokens as number)} tokens`
-      : `上下文已使用 ${compactTokens(used)} tokens（模型上限未知）`,
-  ];
-  if (compacting) tipParts.push("上下文压缩中…");
-  else if (lastCompactAt) {
-    const secs = Math.max(0, Math.round((Date.now() - lastCompactAt) / 1000));
-    tipParts.push(secs < 60 ? `最近压缩于 ${secs} 秒前` : `最近压缩于 ${Math.round(secs / 60)} 分钟前`);
-  }
-  const tip = tipParts.join(" ");
-  return (
-    <span
-      className={`ctx-meter ctx-meter--${tone}${compacting ? " is-compacting" : ""}`}
-      data-tip={tip}
-      aria-label={tip}
-    >
-      <ContextMeterIcon radius={r} circumference={circ} offset={off} />
-    </span>
-  );
-}
-
-// 底部答复进度条右侧的幽默文案池（黑白幽默，不低俗）；进入忙碌时随机取一条、本轮固定
-const PROGRESS_TIPS = [
-  "Agent 还在线，放心划水",
-  "正在把零散想法拼成答案",
-  "AI 正在燃烧脑细胞",
-  "别急，好饭不怕晚",
-  "码字中，请勿投喂",
-  "思考得比看起来深",
-  "马上就好，真的",
-  "先想想，再说话",
-] as const;
-
-// 默认场景：通用示例（宿主可传入自己的 scenes 覆盖）。
-export const DEFAULT_SCENES = [
-  {
-    key: "general",
-    label: "通用",
-    suggestions: [
-      { label: "你好" },
-      { label: "你能做什么？" },
-      { label: "帮我写一个 hello.py" },
-    ],
-  },
-];
 
 /**
  * 执行场景建议的命令动作（SceneSuggestion.command）。设置了 command 的建议点击后
@@ -322,122 +229,6 @@ function SuggestionButton({ s, onSend, onFill }: { s: SceneSuggestion; onSend: (
   );
 }
 
-/** 工具栏「+」右侧的接入群胶囊条：名称放得下就放名称，放不下转纯头像，再放不下裁剪；最右 › 弹框列出全部并可删除。 */
-function RefChipBar({ refs, basePath, onRemove }: { refs: GroupRef[]; basePath?: string; onRemove: (id: string) => void }) {
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const measureRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const [visible, setVisible] = useState(refs.length);
-  const [showName, setShowName] = useState<Set<number>>(new Set());
-  const [overflow, setOverflow] = useState(false);
-  const ARROW_W = 30;
-
-  useLayoutEffect(() => {
-    const wrap = wrapRef.current;
-    const measure = measureRef.current;
-    if (!wrap || !measure) return;
-    const compute = () => {
-      const W = wrap.clientWidth;
-      const nodes = Array.from(measure.children) as HTMLElement[];
-      const GAP = 6;
-      const greedy = (reserve: number) => {
-        let used = 0;
-        let count = 0;
-        const names = new Set<number>();
-        for (let i = 0; i < refs.length; i++) {
-          const nameW = nodes[i * 2]?.offsetWidth ?? 0;
-          const avW = nodes[i * 2 + 1]?.offsetWidth ?? 0;
-          const pad = used === 0 ? 0 : GAP;
-          if (used + pad + nameW <= W - reserve) { used += pad + nameW; names.add(i); count++; }
-          else if (used + pad + avW <= W - reserve) { used += pad + avW; count++; }
-          else break;
-        }
-        return { count, names };
-      };
-      // 第一遍不预留箭头：全部放得下就完整显示名字、不显示 ›；
-      // 放不下再第二遍预留箭头位，压缩到只显示能容纳的。
-      let res = greedy(0);
-      if (res.count < refs.length) res = greedy(ARROW_W);
-      setVisible(res.count);
-      setShowName(res.names);
-      setOverflow(res.count < refs.length);
-    };
-    compute();
-    const ro = new ResizeObserver(compute);
-    ro.observe(wrap);
-    return () => ro.disconnect();
-  }, [refs]);
-
-  if (!refs.length) return null;
-  const avatarSrc = (r: GroupRef) => r.avatar ? (r.avatar.startsWith("/") ? `${basePath ?? ""}${r.avatar}` : r.avatar) : undefined;
-
-  return (
-    <div className="ref-chip-wrap">
-      {/* 隐藏测量层：每个接入项两个节点（名称胶囊宽 / 纯头像胶囊宽） */}
-      <div ref={measureRef} className="ref-chip-measure" aria-hidden="true">
-        {refs.map((r) => (
-          <Fragment key={r.id}>
-            <span className="ref-chip ref-chip--name">
-              <span className="ref-chip-av"><Avatar name={r.title} src={avatarSrc(r)} isGroup={r.kind !== "peer"} size={18} className="chat-ref-avatar" /></span>
-              <span className="ref-chip-name">{r.title}</span>
-            </span>
-            <span className="ref-chip ref-chip--avatar">
-              <span className="ref-chip-av"><Avatar name={r.title} src={avatarSrc(r)} isGroup={r.kind !== "peer"} size={18} className="chat-ref-avatar" /></span>
-            </span>
-          </Fragment>
-        ))}
-      </div>
-      <div className="ref-chip-bar" ref={wrapRef}>
-        <div className="ref-chip-scroll">
-          {refs.slice(0, visible).map((r, i) => (
-            <span
-              key={r.id}
-              className={`ref-chip${showName.has(i) ? " ref-chip--name" : " ref-chip--avatar"}`}
-              title={r.title}
-            >
-              <span className="ref-chip-av">
-                <Avatar name={r.title} src={avatarSrc(r)} isGroup={r.kind !== "peer"} size={18} className="chat-ref-avatar" />
-                <button
-                  type="button"
-                  className="ref-chip-x"
-                  onClick={() => onRemove(r.id)}
-                  aria-label="移除接入"
-                  title="移除接入"
-                >×</button>
-              </span>
-              {showName.has(i) ? <span className="ref-chip-name">{r.title}</span> : null}
-            </span>
-          ))}
-        </div>
-        {overflow ? (
-          <button
-            type="button"
-            className="ref-chip-more"
-            onClick={() => setOpen((v) => !v)}
-            aria-label="查看全部接入的群/聊天"
-            aria-expanded={open}
-          >›</button>
-        ) : null}
-      </div>
-      {open ? (
-        <div className="ref-chip-pop">
-          <div className="ref-chip-pop-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />
-          <div className="ref-chip-pop-inner">
-            <div className="ref-chip-pop-title">已接入 {refs.length} 个群/聊天</div>
-            {refs.map((r) => (
-              <div className="ref-chip-row" key={r.id}>
-                <Avatar name={r.title} src={avatarSrc(r)} isGroup={r.kind !== "peer"} size={18} className="chat-ref-avatar" />
-                <span className="ref-chip-row-name" title={r.title}>{r.title}</span>
-                <button type="button" className="ref-chip-row-remove" onClick={() => onRemove(r.id)}>移除</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 export default function AgentWindow(props: AgentWindowProps) {
   return <ChatLocaleProvider locale={props.locale}><AgentWindowContent {...props} /></ChatLocaleProvider>;
 }
@@ -481,10 +272,11 @@ function AgentWindowContent({
   emptyMessage,
   initialUser = {},
   basePath: basePathProp = "/",
-  scenes = DEFAULT_SCENES,
+  scenes,
   onLogout,
   chatEndpoint,
   artifactEndpoint,
+  cloudArtifactEndpoint,
   uploadEndpoint,
   voiceEnabled = true,
   voiceHoldEnabled,
@@ -602,7 +394,15 @@ function AgentWindowContent({
     url.pathname = pathname;
     return url.toString();
   };
-  const artifactUrl = (params: Record<string, string>): string => endpointUrl(artifactEndpoint || `${basePath}/api/artifact`, params);
+  /**
+   * 产物端点：群聊（云端会话）的产物写在 Web 服务存储根里，本机 agent 的根目录下没有这些文件，
+   * 而渲染层直连云端的原生请求（img / iframe / 下载）带不上跨站 Cookie。
+   * 宿主若提供 cloudArtifactEndpoint（本机带登录态的转发端点），群聊会话一律走它。
+   * 注意这里读的是 coworkActive（声明在下方）——artifactUrl 只在渲染完成后的请求里调用，
+   * 届时同作用域绑定已初始化。
+   */
+  const artifactUrl = (params: Record<string, string>): string =>
+    endpointUrl((coworkActive && cloudArtifactEndpoint) || artifactEndpoint || `${basePath}/api/artifact`, params);
   const navigationEntries = useMemo(() => resolveSidebar(sidebar), [sidebar]);
   const navigationKeys = useMemo(() => navigationEntries.map((entry) => entry.key), [navigationEntries]);
   const hasNavigation = showNavigation && hasSidebar(navigationEntries);
@@ -961,13 +761,10 @@ function AgentWindowContent({
   // 队列拖拽排序：记录正在拖拽的条目 id
   const queueDragRef = useRef<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // busy 的 ref 镜像：看门狗计时器（setInterval 闭包）需要读取最新值，useState 在闭包里是旧的。
-  const busyRef = useRef(false);
   // 正在运行中的会话集合（sid）：每个会话独立转圈，切走不杀旧流，后台仍在跑的会话也需在侧边栏显示转圈
   const runningSidsRef = useRef<Set<string>>(new Set());
   const [runningSids, setRunningSids] = useState<Set<string>>(() => new Set());
   const completedCardSidsRef = useRef<Set<string>>(new Set());
-  const [completedCardSids, setCompletedCardSids] = useState<Set<string>>(() => new Set());
   // 运行中会话数上报给宿主（Dock 角标等）。回调走 ref：宿主多半传内联箭头函数，
   // 直接进依赖数组会导致每次渲染都触发一次上报。
   const runningReportRef = useRef(onRunningSessionsChange);
@@ -1328,7 +1125,6 @@ function AgentWindowContent({
     if (value) nextCards.delete(sid);
     else nextCards.add(sid);
     completedCardSidsRef.current = nextCards;
-    setCompletedCardSids(nextCards);
     // 结束态：非当前查看的会话在后台跑完 → 标记「已完成未查看」（小绿圈）；
     //          当前查看的会话跑完 / 又开始跑 → 清除完成标记（该会话不会误显绿圈）。
     // 补充：本轮运行期间用户已查看过（viewedDuringRun，内容产出时在场）的会话，
@@ -1350,7 +1146,6 @@ function AgentWindowContent({
     setMessages(rt.messages);
     setBusy(rt.busy);
     setPendingQueue(rt.queue ? [...rt.queue] : []);
-    setErrorMsg(rt.errorMsg);
     setReconnectAttempt(rt.reconnectAttempt ?? 0);
     setOpenThinking(rt.openThinking);
     // 切进正在运行的会话：用户已处于该会话页，本轮后续完成不应再标「已完成未查看」绿圈。
@@ -2299,17 +2094,6 @@ function AgentWindowContent({
     setSearchIdx(0);
   }
 
-  /** 只保留一个顶栏面板打开（搜索/分享互斥）。 */
-  function togglePanel(panel: "search" | "share") {
-    setSearchOpen(panel === "search" ? (o) => !o : false);
-    setShareOpen(panel === "share" ? (o) => !o : false);
-    if (panel !== "search") closeSearchStateOnly();
-  }
-  function closeSearchStateOnly() {
-    setSearchQuery("");
-    setSearchIdx(0);
-  }
-
   /**
    * 打开分享：先为当前会话创建分享链接（未创建时），随后总是弹出分享面板，
    * 由用户选择：复制链接 / 浏览器打开 / 发送到 OA（钉钉或飞书）聊天。
@@ -2757,7 +2541,7 @@ function AgentWindowContent({
     const host = shellRef.current?.closest<HTMLElement>(".quick-input") ?? shellRef.current?.parentElement;
     if (!host) return;
     host.style.setProperty("--focus-left-extension", growLeft ? `${LEFT_PANE_W}px` : "0px");
-    host.style.setProperty("--focus-right-extension", growRight ? `${rightW ?? 340}px` : "0px");
+    host.style.setProperty("--focus-right-extension", growRight ? `${rightW ?? LEFT_PANE_W}px` : "0px");
     return () => {
       host.style.removeProperty("--focus-left-extension");
       host.style.removeProperty("--focus-right-extension");
@@ -2774,7 +2558,7 @@ function AgentWindowContent({
   const rightWidthReportRef = useRef(onRightPanelWidthChange);
   rightWidthReportRef.current = onRightPanelWidthChange;
   useLayoutEffect(() => {
-    rightWidthReportRef.current?.(growRight ? rightW ?? 340 : null);
+    rightWidthReportRef.current?.(growRight ? rightW ?? LEFT_PANE_W : null);
   }, [growRight, rightW]);
   // 宽度持久化：只要 rightW 变化（拖拽实时）就落盘，不依赖 onResizeEnd 的 pointerup
   // （拖拽中途 resizer 被卸载 / pointerup 丢失时也不会漏存）。受控模式下宽度归宿主所有，不写盘。
@@ -2860,8 +2644,6 @@ function AgentWindowContent({
       if (timer) clearTimeout(timer);
     };
   }, []);
-  // 会话产物总数缓存（按钮计数）：{ [sessionId]: N }，由列表端点拉取后更新
-  const [artifactCounts, setArtifactCounts] = useState<Record<string, number>>({});
   // 会话产物列表缓存（右侧面板数据）：{ [sessionId]: ArtifactMeta[] }
   const [artifactLists, setArtifactLists] = useState<Record<string, ArtifactMeta[]>>({});
   const [artifactLoadErrors, setArtifactLoadErrors] = useState<Record<string, boolean>>({});
@@ -2869,11 +2651,7 @@ function AgentWindowContent({
   const artifactListsDirty = useRef(new Set<string>());
   /** 本轮刚产生新产物 → 下次列表刷新后自动聚焦第一个预览（避免切换会话时误触发） */
   const autoFocusNewArtifactsRef = useRef(false);
-  // 优雅错误提示：error 事件或请求异常时展示（null 表示无）
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
-  // 取消控制：本轮请求的 AbortController
-  const abortRef = useRef<AbortController | null>(null);
   // 构造产物隔离 URL（session 与 file 编码，服务端二次校验防穿越；登录用户走会话 Cookie + DB 归属校验）
   const buildArtifactUrl = (id: string): string => {
     return artifactUrl({ session: sessionId, file: id });
@@ -2929,11 +2707,6 @@ function AgentWindowContent({
       composerRef.current?.focus();
     }
   }, [contentLoading, messages.length, busy]);
-  // 思考计时：thinkingStartRef 记录起点（发送时刻），thinkingTimerRef 每秒更新「已用时」，
-  // 流结束后 stop 并定格为「总用时」。stepStartRefs 记录每个思考步的开始时刻（步1 = 发送时刻）。
-  const thinkingStartRef = useRef<number | null>(null);
-  const thinkingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const stepStartRefs = useRef(new Map<number, number>());
 
   function stopThinkingTimer(rt: RtState) {
     if (rt && rt.thinkingTimer) {
@@ -3015,9 +2788,9 @@ function AgentWindowContent({
   const onResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!rightShown) return;
     e.preventDefault();
-    // 以右栏当前真实宽度为基准（默认 50% 时也正确，而非写死常量）
+    // 以右栏当前真实宽度为基准（缺省 280px 时也正确，而非写死常量）
     const pane = e.currentTarget.closest(".chat-pane-right") as HTMLElement | null;
-    const cur = pane ? Math.round(pane.getBoundingClientRect().width) : (rightW ?? 340);
+    const cur = pane ? Math.round(pane.getBoundingClientRect().width) : (rightW ?? LEFT_PANE_W);
     resizeDragRef.current = { startX: e.clientX, startW: cur };
     setRightDragging(true);
     document.body.style.userSelect = "none";
@@ -3649,7 +3422,6 @@ function AgentWindowContent({
     if (draftHydratedSid !== activeSid) return;
     saveChatDraft(activeSid, composerRef.current?.getText() ?? "", attachments, { references: composerReferences });
   }, [activeSid, draftHydratedSid, attachments, composerReferences]);
-  const [refDialogOpen, setRefDialogOpen] = useState(false);
   const addRef = (ref: GroupRef) =>
     setRefs((prev) => (prev.some((p) => p.id === ref.id) ? prev : [...prev, ref]));
   const removeRef = (id: string) =>
@@ -3658,7 +3430,6 @@ function AgentWindowContent({
   useEffect(() => {
     setRefs([]);
     setReferenceMenuOpen(false);
-    setRefDialogOpen(false);
   }, [activeSid]);
 
   // ============ 发送 ============
@@ -3824,7 +3595,6 @@ function AgentWindowContent({
       markSend();
       setMessages([...initialMsgs]);
       setOpenThinking(new Set());
-      setErrorMsg(null);
       setBusy(true);
       // 本轮开始：重置首增量标记（首次流式内容到达时 markStreaming 置位）
       gotStreamRef.current = false;
@@ -4115,7 +3885,6 @@ function AgentWindowContent({
         rt.errorMsg = failText;
         if (activeSidRef.current === sid) {
           setMessages([...rt.messages]);
-          setErrorMsg(failText);
         }
         return;
       }
@@ -4409,7 +4178,6 @@ function AgentWindowContent({
             markStreaming();
             const errText = evData.text || "服务暂时不可用，请稍后重试";
             rt.errorMsg = errText;
-            if (activeSidRef.current === sid) setErrorMsg(errText);
             // 错误原因也写入气泡正文：进历史、进 DB，刷新后仍可见
             // （之前只展示在错误框，刷新即丢失；且失败原因对用户判断“是否换模型/重试”很有用）
             const lastErr = rt.messages[rt.messages.length - 1];
@@ -4555,11 +4323,9 @@ function AgentWindowContent({
       }
       if (receivedCancelled && !abortController.signal.aborted) {
         rt.errorMsg = "任务已停止";
-        if (activeSidRef.current === sid) setErrorMsg(rt.errorMsg);
       }
       if (receivedDone && rt.errorMsg?.startsWith("停止任务未送达")) {
         rt.errorMsg = null;
-        if (activeSidRef.current === sid) setErrorMsg(null);
       }
       turnCompleted = receivedDone && !receivedError && !receivedCancelled;
       // 流正常结束立即提交剩余文本，不等待视觉动画。
@@ -4712,7 +4478,6 @@ function AgentWindowContent({
           ? "出错了：无法连接本地引擎（服务可能刚启动或已退出）。请稍等几秒重试；若持续出现，请重启应用。"
           : `出错了：${rawMsg}`;
       }
-      if (activeSidRef.current === sid) setErrorMsg(rt.errorMsg);
     } finally {
       if (localProjectRun) {
         const session = sessionsRef.current.find((item) => item.id === sid);
@@ -4909,14 +4674,12 @@ function AgentWindowContent({
               ? "会话已失效，请重新发送消息"
               : "插话失败，请稍后重试";
           rt.errorMsg = msg;
-          if (activeSidRef.current === sid) setErrorMsg(msg);
           console.warn("[agent-kit] steer 失败:", data.reason || data.error || res.status);
         }
       }
     } catch (err) {
       const msg = "插话失败，请稍后重试";
       rt.errorMsg = msg;
-      if (activeSidRef.current === sid) setErrorMsg(msg);
       console.warn("[agent-kit] steer 请求异常:", err);
     } finally {
       steerInFlightRef.current.delete(item.id);
@@ -4996,13 +4759,12 @@ function AgentWindowContent({
               window.localStorage.setItem(`agent-kit:run-failure:${sid}`, rt.errorMsg);
             } catch { /* ignore */ }
             markBusy(sid, false);
-            if (activeSidRef.current === sid) { setBusy(false); setErrorMsg(rt.errorMsg); }
+            if (activeSidRef.current === sid) setBusy(false);
           }
         }
       }).catch((error) => {
         const message = `停止任务未送达：${error instanceof Error ? error.message : String(error)}`;
         rt.errorMsg = message;
-        if (activeSidRef.current === sid) setErrorMsg(message);
       });
     } else {
       rt.abort?.abort();
@@ -5353,13 +5115,11 @@ function AgentWindowContent({
         if (res.status !== 403 && res.status !== 401) throw new Error("artifacts load failed");
         // 权限校验失败（403：会话不属于当前用户 / 游客票据无效或过期）：静默置空，
         // 右侧显示该会话的空态，不弹错、不阻塞切换。游客刷新后无票据属正常（会话不持久化）。
-        setArtifactCounts((cur) => ({ ...cur, [id]: 0 }));
         setArtifactLists((cur) => ({ ...cur, [id]: [] }));
         return;
       }
       const data = await res.json() as { artifacts?: ArtifactMeta[] };
       const arts = Array.isArray(data.artifacts) ? data.artifacts : [];
-      setArtifactCounts((cur) => ({ ...cur, [id]: arts.length }));
       setArtifactLists((cur) => ({ ...cur, [id]: arts }));
     } catch {
       setArtifactLoadErrors((current) => ({ ...current, [id]: true }));
@@ -5820,7 +5580,6 @@ function AgentWindowContent({
         const nextCards = new Set(completedCardSidsRef.current);
         nextCards.delete(id);
         completedCardSidsRef.current = nextCards;
-        setCompletedCardSids(nextCards);
       }
       if (localChat && !backgroundMode) void localChatPatch(localOwner, id, { aiUnread: false });
       // 打开会话即视为已查看：清除其「已完成未查看」标记（小绿圈消失）
@@ -6160,7 +5919,6 @@ function AgentWindowContent({
       const nextCards = new Set(completedCardSidsRef.current);
       nextCards.delete(targetId);
       completedCardSidsRef.current = nextCards;
-      setCompletedCardSids(nextCards);
     }
     if (targetId === activeSidRef.current && localChat) {
       setSessions((list) => list.map((item) => item.id === targetId ? { ...item, aiUnread: false } : item));
@@ -7051,7 +6809,6 @@ function AgentWindowContent({
           } catch { /* ignore */ }
           console.error("[agent-kit] 提交 AskUserQuestion 答案失败:", detail, "session=", rt.sdkSid);
           rt.errorMsg = `提交答案失败（${detail}）。请重试或刷新。`;
-          if (activeSidRef.current === sid) setErrorMsg(rt.errorMsg);
           return;
         }
         // 后端返回 { ok:false }：挂起的提问已不存在（会话结束/超时/已被其它请求消费）——
@@ -7064,18 +6821,15 @@ function AgentWindowContent({
         if (!delivered) {
           console.warn("[agent-kit] 提交答案：后端无挂起提问（可能已超时/会话结束）session=", rt.sdkSid);
           rt.errorMsg = "答案未能送达（会话可能已结束或超时），可让模型重新提问或新开对话。";
-          if (activeSidRef.current === sid) setErrorMsg(rt.errorMsg);
           return;
         }
         // 成功送达：清除可能残留的旧错误提示
         if (rt.errorMsg) {
           rt.errorMsg = null;
-          if (activeSidRef.current === sid) setErrorMsg(null);
         }
       } catch (e) {
         console.error("[agent-kit] 提交 AskUserQuestion 答案失败（网络/传输错误）:", e, "session=", rt.sdkSid);
         rt.errorMsg = "提交答案失败（网络错误），请检查连接后重试。";
-        if (activeSidRef.current === sid) setErrorMsg(rt.errorMsg);
       }
   }
 
@@ -7712,7 +7466,7 @@ function AgentWindowContent({
         window.dispatchEvent(new CustomEvent(CHAT_LINK_OPEN_EVENT, { detail: { url: url.href, sid: activeSid } }));
       }}
       className={`chat-shell layout-${layoutMode}${className ? ` ${className}` : ""}${embeddedMode ? " is-embedded" : ""}${IS_ELECTRON ? " env-electron" : ""}${isInDingTalk() ? " env-dingtalk" : ""}${sidebarOpen && !embeddedMode ? " has-left-pane" : ""}${rightShown && !embeddedMode ? " has-right-pane" : ""}${["artifacts", "chatmate", "monologue"].includes(mobileWorkPage ?? "") ? " has-mobile-work-page" : ""}${previewFull && rightShown ? " has-preview-full" : ""}${appFull ? " has-app-full" : ""}${hasNavigation && !embeddedMode ? ` has-navigation navigation-${activeNavigation.replace(/[^a-zA-Z0-9_-]/g, "-")}` : ""}${!embeddedMode && activeNavigation === "home" && !libraryOpen ? conversationView ? " has-mobile-conversation" : " has-mobile-list" : ""}`}
-      style={{ "--left-used": sidebarOpen ? `${LEFT_PANE_W}px` : "0px", "--grow-left": growLeft ? `${LEFT_PANE_W}px` : "0px", "--grow-right": growRight ? `${rightW ?? 340}px` : "0px" } as React.CSSProperties}
+      style={{ "--left-used": sidebarOpen ? `${LEFT_PANE_W}px` : "0px", "--grow-left": growLeft ? `${LEFT_PANE_W}px` : "0px", "--grow-right": growRight ? `${rightW ?? LEFT_PANE_W}px` : "0px" } as React.CSSProperties}
     >
       {newSessionNotice ? <div className="chat-share-toast" role="status">{newSessionNotice}</div> : null}
       {IS_ELECTRON ? <DesktopHistoryControls previewFull={previewFull && rightShown} onExitPreviewFull={() => setPreviewFull(false)} /> : null}

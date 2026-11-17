@@ -281,18 +281,23 @@
   display: flex; flex-wrap: wrap; gap: 10px;
   margin: 10px 0 2px;
 }
+/* 高度按两行文字（文件名 19px + 间距 3px + 大小 15px = 37px）收紧，比旧版矮一档；
+   图标盒与这两行同高，做到「图标顶部对齐文件名顶部、底部对齐文件大小底部」。 */
 .artifact-card {
-  display: inline-flex; align-items: center; gap: 12px;
+  display: inline-flex; align-items: center; gap: 11px;
   width: min(340px, 100%);
-  padding: 11px 14px;
+  padding: 9px 14px;
   border: 1px solid var(--line); border-radius: 12px;
   background: var(--panel); color: var(--ink);
   cursor: pointer; text-align: left;
   transition: border-color .15s, box-shadow .15s, transform .1s;
 }
 .artifact-card:active { transform: scale(.98); }
-.artifact-card-icon { flex: 0 0 auto; display: inline-flex; }
+.artifact-card-icon { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
 .artifact-card-icon svg { width: 26px; height: 26px; fill: none; stroke: var(--ink-soft); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+/* 仅消息里的产物卡片放大图标：文档页墨迹约占 viewBox 的 88%，34px 盒的可视高度 ≈ 30px，
+   正好覆盖「文件名 + 文件大小」两行文字从字形顶部到基线的实际高度，上下两端与文字对齐。 */
+.artifact-card .artifact-card-icon svg { width: 34px; height: 34px; }
 /* PDF 图标：SVG Repo 标准图标（白底文档页 + 粗体 PDF），填充灰（与其它文件 icon 颜色统一）、无描边 */
 .artifact-card-icon svg.artifact-icon-pdf { fill: var(--ink-soft); stroke: none; }
 .artifact-card-main {
@@ -300,15 +305,15 @@
   display: flex; flex-direction: column; gap: 3px;
 }
 .artifact-card-name {
-  font-size: 14px; font-weight: 600; color: var(--ink);
+  font-size: 14px; font-weight: 600; line-height: 19px; color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .artifact-card-meta {
   display: inline-flex; align-items: center; gap: 8px;
-  min-height: 18px;
+  min-height: 15px;
 }
 .artifact-card-size {
-  flex: 0 0 auto; font-size: 11.5px; color: var(--ink-soft);
+  flex: 0 0 auto; font-size: 11.5px; line-height: 15px; color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
 /* 右侧「打开预览」箭头：无背景，中性色，hover 不强调 */
@@ -688,7 +693,7 @@
   padding: 0 8px; vertical-align: top;
   font-family: var(--mono, ui-monospace, "Cascadia Code", Consolas, monospace);
   font-size: 12px; white-space: pre-wrap; word-break: break-all;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+  /* 行间不画横线：改动行已有红/绿底色，逐行描边会把面板变成表格栅格 */
 }
 .diff-lineno {
   width: 58px; min-width: 58px; text-align: right;
@@ -1060,8 +1065,6 @@
 .afm-list--list .artifact-list-item.is-selected { border-radius: 0; }
 .afm-list--list .artifact-list-item.is-selected.is-selection-start { border-top-left-radius: 8px; border-top-right-radius: 8px; }
 .afm-list--list .artifact-list-item.is-selected.is-selection-end { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
-.afm-list--list .artifact-list-item .afm-code-icon svg { width: 16px; height: 16px; }
-.afm-list--icons .artifact-list-item .afm-code-icon svg { width: 48px !important; height: 48px !important; }
 .afm-list--list .afm-tree-header { height: 36px; align-items: stretch; padding: 0 6px; }
 .afm-tree-header button { height: 100%; }
 .afm-list--list .artifact-list-item { gap: 2px; }
@@ -1077,7 +1080,6 @@
 .afm-column-item-button { display: flex; align-items: center; gap: 8px; width: 100%; height: 100%; min-width: 0; border: 0; padding: 4px 8px; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .afm-column-item .artifact-card-icon { width: 20px; height: 20px; align-items: center; justify-content: center; }
 .afm-column-item .artifact-card-icon svg { width: 20px; height: 20px; }
-.afm-column-item .afm-code-icon svg { width: 16px; height: 16px; }
 .afm-column-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .afm-column-chevron { display: inline-flex; flex: 0 0 14px; width: 14px; height: 14px; color: var(--ink-soft); }
 .afm-column-chevron svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

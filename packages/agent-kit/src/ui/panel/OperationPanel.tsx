@@ -6,7 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProp
 import { createPortal } from "react-dom";
 import { useBottomJump } from "../chat/useBottomJump.ts";
 import { useClickOutside } from "../useClickOutside.ts";
-import { FolderIcon, RevealInFolderIcon, SettingsIcon, BrowserGlobeIcon } from "../icons/SharedIcons.tsx";
+import { CloseIcon, FolderIcon, RevealInFolderIcon, SettingsIcon, BrowserGlobeIcon } from "../icons/SharedIcons.tsx";
 import { EnhanceIcon } from "../icons/ActionIcons.tsx";
 import FileTypeIcon from "../icons/FileTypeIcons.tsx";
 import { ArtifactDiffPanel, type ArtifactChange } from "../components/ArtifactDiff.tsx";
@@ -62,7 +62,7 @@ import "prismjs/components/prism-bash";
 import "prismjs/components/prism-powershell";
 import "prismjs/components/prism-yaml";
 import "prismjs/components/prism-ini";
-import { SparkleOutlineIcon, ChatmateBubbleIcon, ChatPanelGlyph04, ChatPanelGlyph21, ChatPanelGlyph34, OperationPanelGlyph01, OperationPanelGlyph02, OperationPanelGlyph03, OperationPanelGlyph04, OperationPanelGlyph07, OperationPanelGlyph08, OperationPanelGlyph09, OperationPanelGlyph10, OperationPanelGlyph11, OperationPanelGlyph12, LocateGlyph, UploadIcon } from "../icons/PageIcons.tsx";
+import { SparkleOutlineIcon, ChatmateBubbleIcon, ChatPanelGlyph04, ChatPanelGlyph21, ChatPanelGlyph34, OperationPanelGlyph02, OperationPanelGlyph03, OperationPanelGlyph04, OperationPanelGlyph07, OperationPanelGlyph08, OperationPanelGlyph09, OperationPanelGlyph10, OperationPanelGlyph11, OperationPanelGlyph12, LocateGlyph, UploadIcon } from "../icons/PageIcons.tsx";
 
 function RefreshIcon() {
   return <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -79,7 +79,7 @@ function RefreshIcon() {
 export function ArtifactIcon({ type, name }: { type: ArtifactType; name?: string }): ReactNode {
   if (type === "text")
     return (
-      <OperationPanelGlyph01 />
+      <FileTypeIcon kind="text" />
     );
   if (type === "html")
     return (
@@ -1209,7 +1209,7 @@ export default function OperationPanel(props: OperationPanelProps) {
               onDragEnd={() => { draggedTabKey.current = null; }}
               onContextMenu={(event) => { event.preventDefault(); setTabMenu({ key: tab.key, x: event.clientX, y: event.clientY }); }}>
               <button type="button" role="tab" aria-selected={selectedTab?.key === tab.key} className="work-panel-tab" title={tab.title} onClick={() => { setActiveTabKey(tab.key); setPreviewFull(false); }} onDoubleClick={() => { setActiveTabKey(tab.key); setPreviewHeadShown(false); setPreviewFull((v) => !v); }}><span className="work-panel-tab-icon" aria-hidden="true">{tab.kind === "surface" && tab.surface.presentation === "app" && tab.surface.iconUrl ? <img src={tab.surface.iconUrl} alt="" /> : tab.kind === "surface" && tab.surface.kind === "website" && tab.surface.presentation !== "app" || tab.kind === "artifact" && tab.meta.type === "browser" ? <BrowserGlobeIcon /> : tab.kind === "files" ? <ArtifactsFolderIcon /> : tab.kind === "inputs" ? <UploadIcon /> : tab.kind === "chatmate" ? <ChatmateBubbleIcon /> : tab.kind === "monologue" ? <SparkleOutlineIcon /> : tab.kind === "artifact" ? <ArtifactIcon type={tab.meta.type} /> : tab.kind === "input" ? <FileTypeIcon name={tab.file?.name ?? tab.title} kind={tab.file?.type} /> : tab.kind === "terminal" ? <TerminalIcon /> : tab.kind === "changes" ? "±" : "▧"}</span>{tab.title}</button>
-              <button type="button" className="work-panel-tab-close" onClick={() => closeTab(tab.key)} aria-label={t("closeTabNamed", { title: tab.title })} title={t("closeTab")}>×</button>
+              <button type="button" className="work-panel-tab-close" onClick={() => closeTab(tab.key)} aria-label={t("closeTabNamed", { title: tab.title })} title={t("closeTab")}><CloseIcon /></button>
             </div>)}
             <button type="button" className="work-panel-add" aria-label={t("newWork")} title={t("newWork")} onClick={() => { setActiveTabKey(null); setPreviewFull(false); }}>+</button>
           </div>

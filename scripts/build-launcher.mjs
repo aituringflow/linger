@@ -301,8 +301,11 @@ const packageConfig = path.join(packageTemp, "electron-builder.yml");
 if (!DRY_RUN) {
   process.on("exit", () => { try { fs.rmSync(packageTemp, { recursive: true, force: true }); } catch { /* best effort */ } });
   const sourceConfig = fs.readFileSync(path.join(appDir, "electron-builder.yml"), "utf8");
-  const marker = "  - out/**";
-  if (!sourceConfig.includes(marker)) throw new Error("electron-builder.yml is missing the out/** file rule");
+  // 只替换占位行，绝不动 files 的首项：electron-builder 只有在「首个 files 项是字符串」时
+  // 才会用那份模式列表接管 app 目录拷贝；首位换成 from/to 对象就会回落成 **/*，
+  // 排除规则（src/、logs/、resources/ ...）随之失效。
+  const marker = '  - "__LINGER_PACKAGE_OUT__"';
+  if (!sourceConfig.includes(marker)) throw new Error('electron-builder.yml is missing the "__LINGER_PACKAGE_OUT__" placeholder');
   const packagedFiles = `  - from: ${JSON.stringify(packageOut)}\n    to: out\n    filter:\n      - "**/*"`;
   fs.writeFileSync(packageConfig, sourceConfig.replace(marker, packagedFiles));
   process.env.LINGER_PACKAGE_OUT_DIR = packageOut;

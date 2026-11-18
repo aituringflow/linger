@@ -1,18 +1,27 @@
-FROM node:24-bookworm-slim
+# 基础镜像可由构建方用 --build-arg 替换（group-container.ts 会先探测、拉取可用源再构建）。
+# Docker Hub 官方仓库在国内多数网络不可达，直连拉取会卡到超时，所以默认值只是「官方引用」，
+# 实际构建时通常已被服务端换成国内反代地址（拉回来会打回这个 tag，FROM 保持原样）。
+ARG BASE_IMAGE=node:24-bookworm-slim
+FROM ${BASE_IMAGE}
 
 # 群容器以 --read-only + 非 root 运行，用户无法自己 apt 装东西，所以终端里要用到的
-# 常用工具必须在镜像里备好：编辑器（vi/nano）是最常被问到的缺失项。
+# 常用工具必须在镜像里备好：编辑器（vi/nano）是最常被问到的缺失项，curl 同理。
+# vim-tiny 只提供 vi / vim.tiny，用户几乎都会直接敲 vim，所以额外补一个 vim 软链。
 #
-# apt 源：Debian 官方源在部分网络环境（国内等）会静默超时——apt 把超时当 "Ign"、
-# 返回码仍是 0，随后 install 全部报「Unable to locate package / has no installation
-# candidate」。所以这里用 node 先探一次官方源（8s），不可达再切阿里云镜像，
-# 判据是真实的 HTTP 可达性，而不是 apt 的返回码。
+# apt 源：只判「可达性」不够。国内 deb.debian.org 往往**能通但极慢**（实测某台服务器
+# 32 kB/s，拉 149 kB 的 Release 要 4.6s，apt-get update 卡了 11 分钟没结束，第二次实测
+# 甚至跑到超时），而阿里云/清华是 300+ kB/s。所以这里让 node 并发实测三个源各下载一次
+# Release，取**耗时最短**的那个换进 sources（都失败就保持官方源，让 apt 自己报错）。
+# 注意：判据用的是真实下载完成耗时，不是 apt 的返回码——apt 会把连接超时当 "Ign"，
+# 返回码仍是 0，随后 install 才报「Unable to locate package」。
 RUN set -eux; \
-    if ! node -e "fetch('http://deb.debian.org/debian/dists/bookworm/Release',{signal:AbortSignal.timeout(8000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then \
-      sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources; \
+    mirror="$(node -e 'const hosts=["deb.debian.org","mirrors.aliyun.com","mirrors.tuna.tsinghua.edu.cn"];const measure=h=>{const t=Date.now();return fetch("http://"+h+"/debian/dists/bookworm/Release",{signal:AbortSignal.timeout(6000)}).then(async r=>{if(!r.ok)return 1e9;const b=await r.arrayBuffer();return b.byteLength>5e4?Date.now()-t:1e9;}).catch(()=>1e9);};Promise.all(hosts.map(measure)).then(s=>{let best=0;s.forEach((v,i)=>{if(v<s[best])best=i;});process.stdout.write(hosts[best]);});')"; \
+    if [ -n "$mirror" ] && [ "$mirror" != "deb.debian.org" ]; then \
+      sed -i "s|deb.debian.org|$mirror|g" /etc/apt/sources.list.d/debian.sources; \
     fi; \
     apt-get update; \
-    apt-get install -y --no-install-recommends ca-certificates git iproute2 iptables vim-tiny nano less; \
+    apt-get install -y --no-install-recommends ca-certificates curl git iproute2 iptables vim-tiny nano less; \
+    ln -sf /usr/bin/vim.tiny /usr/bin/vim; \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /group/artifacts

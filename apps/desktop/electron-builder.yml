@@ -21,14 +21,31 @@ directories:
 
 # Pack only Electron main/preload/renderer code; .env stays editable outside the package.
 #
+# 扫描基准是 `**/*`（即整个 apps/desktop），所以「不该进包的东西必须显式排除」：
+#  - src/ 是源码目录，渲染层资源（壁纸 / 宠物 / 图标）已由 electron-vite 复制到
+#    out/renderer，再打一份 src/renderer/public 等于同一批 26MB 图片进包两遍，
+#    而 JPEG/PNG 在 DMG 里几乎压不动；
+#  - native/ 是 .m/.swift 源码，scripts/、tsconfig*、electron.vite.config.ts 是构建输入，
+#    tests/ 是测试，运行期一律不读；resources/ 下的原生工具与 lproj 由 extraResources
+#    单独复制到 Resources 根目录（见文件末尾），不需要在 asar 里再存一份。
+# 排除规则必须和 `**/*` 在同一个数组里才生效：拆到另一个 fileset 只会被当成独立规则，
+# 管不到主拷贝路径（之前 !**/logs/** 就是这么失效的）。
+#
 # 体积/耗时大头是「文件数」而不是字节数：node_modules 里有 1.5 万个 .d.ts/.d.cts/
 # .d.mts（纯类型声明）和 1700 多个 README/CHANGELOG。它们运行期一律不会被读，但每个
 # 文件都要 stat + read + write，Windows 上还要被 Defender 实时扫描一遍，所以全部剔除。
 # 注意：只删 README/CHANGELOG，不要删其它 *.md —— DSH 的 skills/**/SKILL.md 是运行期
 # 内容（技能提示词）。
 files:
-  - out/**
-  - prototypes/wechat-window-cua/**
+  # build 脚本会把这一行替换成指向临时 out 目录的 fileset（编译产物不进 apps/desktop/out，
+  # 避免与 dev watcher 抢同一个目录）。注意这一项必须在首位：electron-builder 26 在这种
+  # 「对象 + 字符串混排」的 files 里，app 目录的拷贝只会用 `**/*` 的兜底列表，
+  # 本列表里的排除规则只作用于 node_modules —— 目录级排除要写在 mac/win 的 files 里（见下）。
+  - "__LINGER_PACKAGE_OUT__"
+  # 不要在这里写 "!**/node_modules/**"：这个列表同时被用作 node_modules 的拷贝规则，
+  # 写进去会把生产依赖本身排除掉（asar.unpacked 只剩 32K、better-sqlite3 等全部消失）。
+  # app 目录自身的 node_modules 由 electron-builder 自动排除。
+  - "!**/.env"
   - package.json
   - "!**/.env"
   - "!**/*.map"
@@ -42,9 +59,8 @@ files:
   # 每个文件都要 stat+read+write，Windows 上还被 Defender 实时扫一遍。整片剔除。
   - "!**/src/**/*.ts"
   - "!**/src/**/*.tsx"
-  - "!**/logs/**"
-  - "!**/release/**"
-  - "!**/native/**"
+  - "!**/logs{,/**/*}"
+  - "!**/release{,/**/*}"
   - "!**/node_modules/onnxruntime-node/bin/**"
   # onnxruntime-web 自带 4 套 wasm 后端（jsep 28MB / asyncify 27MB / jspi 17MB /
   # 纯 simd 14MB，合计 85MB）。launcher 主进程走 onnxruntime-node（原生绑定），
@@ -121,6 +137,20 @@ win:
     - "!**/vendor/ripgrep/x64-darwin/**"
     - "!**/vendor/ripgrep/x64-linux/**"
     - "!**/vendor/ripgrep/arm64-linux/**"
+    # 目录级排除（与 mac.files 保持一致）：详见顶部 files 的注释——app 目录拷贝只认
+    # 平台级 files 里的排除规则。src/ 是源码（渲染层资源已复制进 out/renderer，
+    # 再打一份等于同一批 26MB 壁纸/宠物图进包两遍），其余是构建输入与测试。
+    - "!src{,/**/*}"
+    - "!native{,/**/*}"
+    - "!scripts{,/**/*}"
+    - "!tests{,/**/*}"
+    # app 目录里的 out/ 是历史编译残留，编译产物由顶部 files 的 fileset 从临时目录注入
+    - "!out{,/**/*}"
+    - "!resources{,/**/*}"
+    - "!electron.vite.config.ts"
+    - "!tsconfig*.json"
+    - "!**/.env.example"
+    - "!**/logs{,/**/*}"
   target:
     - target: nsis
       arch:
@@ -133,6 +163,18 @@ mac:
     - "!**/vendor/ripgrep/x64-linux/**"
     - "!**/vendor/ripgrep/arm64-linux/**"
     - "!**/vendor/ripgrep/x64-darwin/**"
+    # 目录级排除（与 win.files 一致，原因见顶部 files 注释）
+    - "!src{,/**/*}"
+    - "!native{,/**/*}"
+    - "!scripts{,/**/*}"
+    - "!tests{,/**/*}"
+    # app 目录里的 out/ 是历史编译残留，编译产物由顶部 files 的 fileset 从临时目录注入
+    - "!out{,/**/*}"
+    - "!resources{,/**/*}"
+    - "!electron.vite.config.ts"
+    - "!tsconfig*.json"
+    - "!**/.env.example"
+    - "!**/logs{,/**/*}"
   category: public.app-category.utilities
   # 中文系统下 Finder / Dock / 菜单栏显示「灵儿」，英文系统仍为 Linger。
   # macOS 只认 .app 包内的 lproj 本地化，Electron 本身没有应用名多语言能力。

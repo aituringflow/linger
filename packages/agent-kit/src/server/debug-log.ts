@@ -7,7 +7,10 @@
  * 设计：
  *  - 每个 sessionId 一个文件：<logDir>/<sid>.log，每行一条 JSON（时间戳/级别/事件/明细）；
  *  - 级别：debug < info < warn < error，env AGENT_KIT_LOG_LEVEL 控制（默认 debug，最详细）；
- *  - 目录：env AGENT_KIT_LOG_DIR 覆盖，默认 <进程 cwd>/logs/sessions（web 下即 apps/web/logs/sessions）；
+ *  - 目录：env AGENT_KIT_LOG_DIR 覆盖，默认应用主目录下的 logs/sessions
+ *    （`~/.<AGENT_APP_NAME>/logs/sessions`，桌面端即 `~/.linger/logs/sessions`）；
+ *    不落在进程 cwd：cwd 随宿主启动目录变化（dev 下是 apps/desktop、apps/web），
+ *    日志会写进源码树，被 electron-builder 的默认通配规则一并打进安装包；
  *  - 写入 fire-and-forget，按文件串行（promise 链）防交错；日志失败绝不影响对话主链路；
  *  - 流式输出（text/thinking delta、SSE 帧）不逐块记日志，只保留关键锚点：
  *    turn.start / turn.send / turn.done / turn.error / cli.system / cli.model /
@@ -17,6 +20,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
+
+import { appHomePath } from "./app-home.js";
 
 const LEVELS: Record<string, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
@@ -30,9 +35,9 @@ function levelThreshold(): number {
 }
 
 export function logDir(): string {
-  return process.env.AGENT_KIT_LOG_DIR?.trim()
-    ? path.resolve(process.env.AGENT_KIT_LOG_DIR.trim())
-    : path.resolve(process.cwd(), "logs", "sessions");
+  const override = process.env.AGENT_KIT_LOG_DIR?.trim();
+  if (override) return path.resolve(override);
+  return appHomePath("logs", "sessions");
 }
 
 /** 长文本截断：日志可读性优先，超长部分标注省略长度 */

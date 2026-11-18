@@ -17,6 +17,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { WebSocket } from "ws";
 import { ensureGroupContainer, nameFor, terminalHomeDir } from "./group-container.js";
+import { dockerClient } from "./docker-endpoint.js";
 import { getAgentSession } from "./auth/db.js";
 
 const MAX_SESSIONS = 24;
@@ -46,7 +47,6 @@ type PtySession = {
 };
 
 const SESSIONS = new Map<string, PtySession>();
-let client: Dockerode | null = null;
 
 /** 兜底窗口尺寸：docker exec 建 PTY 时不传尺寸 → 内核默认 0×0。
  *  0×0 会让 vim/less 这类全屏程序退回内置的 80×24，只在面板左上角画一小块。 */
@@ -55,18 +55,6 @@ const DEFAULT_ROWS = 30;
 /** 上限：防呆（前端被篡改 / 计算异常时别把 PTY 撑成巨大尺寸）。 */
 const MAX_COLS = 999;
 const MAX_ROWS = 999;
-
-function dockerClient(): Dockerode {
-  if (client) return client;
-  const host = process.env.DOCKER_HOST;
-  if (host?.startsWith("tcp://")) {
-    const url = new URL(host);
-    client = new Dockerode({ host: url.hostname, port: url.port ? Number(url.port) : 2375 });
-  } else {
-    client = new Dockerode({ socketPath: process.platform === "win32" ? "//./pipe/docker_engine" : "/var/run/docker.sock" });
-  }
-  return client;
-}
 
 function safeHost(host: string): string {
   const clean = host.replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, 40);

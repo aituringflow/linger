@@ -30,7 +30,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
-import Dockerode from "dockerode";
+import { dockerClient, dockerEndpointLabel, dockerExecutable } from "./docker-endpoint.js";
 import { Client } from "pg";
 import { verifyAdmin } from "./sessions.js";
 
@@ -132,31 +132,21 @@ function inPath(binary: string): string {
   return "";
 }
 
-/** Docker CLI 探测（与 group-container.ts 同一套候选逻辑）。 */
+/** Docker CLI 探测（与 group-container.ts 共用 docker-endpoint 的解析，含 Linux 常见安装位置）。 */
 function dockerCliPath(): string {
-  const configured = process.env.GROUP_DOCKER_CLI_PATH?.trim();
-  if (configured) return configured;
-  if (process.platform === "win32") {
-    const candidates = [
-      process.env.ProgramFiles && path.join(process.env.ProgramFiles, "Docker", "Docker", "resources", "bin", "docker.exe"),
-      process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Programs", "DockerDesktop", "resources", "bin", "docker.exe"),
-    ];
-    const installed = candidates.find((candidate): candidate is string => !!candidate && existsSync(candidate));
-    if (installed) return installed;
-  }
-  return inPath(process.platform === "win32" ? "docker.exe" : "docker") || "docker";
+  const executable = dockerExecutable();
+  if (path.isAbsolute(executable)) return executable;
+  return inPath(process.platform === "win32" ? "docker.exe" : "docker") || executable;
 }
 
-async function dockerDaemonOk(): Promise<boolean> {
+async function dockerDaemonState(): Promise<{ ok: boolean; error: string }> {
   try {
-    const host = process.env.DOCKER_HOST;
-    const client = host?.startsWith("tcp://")
-      ? new Dockerode({ host: new URL(host).hostname, port: Number(new URL(host).port || 2375) })
-      : new Dockerode({ socketPath: process.platform === "win32" ? "//./pipe/docker_engine" : "/var/run/docker.sock" });
-    await timeout(client.ping(), 5_000, null);
-    return true;
-  } catch {
-    return false;
+    // 地址解析交给 docker-endpoint（Docker Desktop for Mac 的 socket 在 ~/.docker/run，
+    // 写死 /var/run/docker.sock 会一直判「守护进程不可达」）。
+    await timeout(dockerClient().ping(), 5_000, null);
+    return { ok: true, error: "" };
+  } catch (error) {
+    return { ok: false, error: String((error as Error)?.message ?? error).split(/\r?\n/)[0].slice(0, 160) };
   }
 }
 
@@ -434,12 +424,19 @@ async function checkNpm(): Promise<CheckResult> {
 async function checkDocker(): Promise<CheckResult> {
   const cli = dockerCliPath();
   const cliPresent = cli !== "docker" || inPath("docker") !== "" || existsSync(cli);
-  const daemon = cliPresent ? await dockerDaemonOk() : false;
-  if (cliPresent && daemon) {
-    return { status: "ok", detail: `CLI 可用（${cli}），Docker 守护进程响应正常` };
+  const daemon = cliPresent ? await dockerDaemonState() : { ok: false, error: "" };
+  const endpoint = dockerEndpointLabel();
+  if (cliPresent && daemon.ok) {
+    return { status: "ok", detail: `CLI 可用（${cli}），Docker 守护进程响应正常（${endpoint}）` };
   }
-  if (cliPresent && !daemon) {
-    return { status: "missing", detail: `找到 CLI（${cli}），但 Docker 守护进程不可达 —— 请启动 Docker Desktop / docker 服务` };
+  if (cliPresent && !daemon.ok) {
+    // 权限问题在 Linux 服务器上比「没启动」更常见：socket 在、当前用户不在 docker 组里。
+    const hint = /EACCES|permission denied/i.test(daemon.error)
+      ? `当前用户无权访问 ${endpoint}，把运行用户加入 docker 组（usermod -aG docker <user>）后重启服务`
+      : process.platform === "linux"
+        ? "确认 docker 服务已启动（systemctl start docker），且运行用户能访问该 socket"
+        : "请启动 Docker Desktop / docker 服务";
+    return { status: "missing", detail: `找到 CLI（${cli}），但 Docker 守护进程不可达（${endpoint}）—— ${hint}${daemon.error ? `；错误：${daemon.error}` : ""}` };
   }
   return { status: "missing", detail: "未找到 docker CLI，Docker 未安装或不在 PATH" };
 }

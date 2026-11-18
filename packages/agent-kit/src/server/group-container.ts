@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, realpath } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 import { homedir, networkInterfaces } from "node:os";
@@ -10,9 +9,25 @@ import { fileURLToPath } from "node:url";
 import Dockerode from "dockerode";
 import { artifactSessionDir, uploadStorageDir } from "./artifacts.js";
 import { appHomePath } from "./app-home.js";
+import { dockerClient, dockerExecutable } from "./docker-endpoint.js";
 
 const DEFAULT_IMAGE = "agent-kit-group-node:24";
 const image = () => process.env.GROUP_BASH_IMAGE?.trim() || DEFAULT_IMAGE;
+/** 群容器基础镜像（Dockerfile.group 的 FROM）。Docker Hub 官方仓库在国内多数网络不可达，
+ *  直接构建会卡在拉取阶段直到超时，所以构建前先确保基础镜像在本地（见 ensureBaseImage）。 */
+const DEFAULT_BASE_IMAGE = "node:24-bookworm-slim";
+/** 可选的 Docker Hub 反代，按顺序尝试；`GROUP_REGISTRY_MIRRORS=host1,host2` 可覆盖。
+ *  这里只放公开、匿名的 library 镜像代理——需要登录的私有加速地址请用 GROUP_BASE_IMAGE 指定。 */
+const DEFAULT_REGISTRY_MIRRORS = ["docker.m.daocloud.io", "docker.1ms.run", "docker.1panel.live", "docker.xuanyuan.me"];
+/** 拉基础镜像（node:24-bookworm-slim 约 350MB）的上限：国内反代 1-5 分钟，不能按普通
+ *  docker 命令的 30s 算。 */
+const PULL_TIMEOUT = 300_000;
+/** 注册表连通性探测的超时：只用来筛掉黑洞地址，不需要等它真拉取。 */
+const PROBE_TIMEOUT = 5_000;
+/** 首次构建（拉基础镜像 + apt 装工具）在网络慢的机器上实测要 10-15 分钟：
+ *  apt 源只有 300 kB/s 时单这一步就 6-8 分钟。原来 900s 的硬超时正好卡在边界上，
+ *  慢一点就整段白跑，所以放宽到 30 分钟；命中缓存时构建只要几秒，不影响日常。 */
+const BUILD_TIMEOUT = 1_800_000;
 /** 一个群共享一个容器：名称只由 sessionId 决定，群内所有 AI 复用。 */
 const hashFor = (sessionId: string) => createHash("sha256").update(sessionId).digest("hex").slice(0, 24);
 const nameFor = (sessionId: string) => `agent-group-${hashFor(sessionId)}`;
@@ -32,20 +47,6 @@ export function terminalHomeDir(sessionId: string): string {
 }
 /** 供 terminal-session 复用容器命名（PTY exec 打在同一群容器里）。 */
 export { nameFor, gatewayName };
-
-function dockerExecutable(): string {
-  const configured = process.env.GROUP_DOCKER_CLI_PATH?.trim();
-  if (configured) return configured;
-  if (process.platform === "win32") {
-    const candidates = [
-      process.env.ProgramFiles && path.join(process.env.ProgramFiles, "Docker", "Docker", "resources", "bin", "docker.exe"),
-      process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Programs", "DockerDesktop", "resources", "bin", "docker.exe"),
-    ];
-    const installed = candidates.find((candidate): candidate is string => !!candidate && existsSync(candidate));
-    if (installed) return installed;
-  }
-  return "docker";
-}
 
 function docker(args: string[], timeoutMs = 30_000): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -70,18 +71,12 @@ function docker(args: string[], timeoutMs = 30_000): Promise<string> {
  * 同一操作的 Engine API 只要 5-10ms（实测相差约 300 倍）。终端启动路径要连续做
  * 多次「容器是否就绪」检查，走 CLI 会让每次打开终端白等十几秒。因此：
  *   - 只读检查 / 容器内短命令 → dockerode（快路径）
- *   - 重建容器的重活（run / rm / network，参数映射复杂且不常发生）→ 仍用 CLI */
-let dockerApiClient: Dockerode | null = null;
+ *   - 重建容器的重活（run / rm / network，参数映射复杂且不常发生）→ 仍用 CLI
+ * 连接地址由 docker-endpoint 解析：Docker Desktop for Mac 的 socket 在
+ * `~/.docker/run/docker.sock`，写死 `/var/run/docker.sock` 会让整条快路径 ENOENT，
+ * 而这里的调用方都把异常当「没有」——那样每个群都会反复重建容器、反复拉镜像。 */
 function dockerApi(): Dockerode {
-  if (dockerApiClient) return dockerApiClient;
-  const host = process.env.DOCKER_HOST;
-  if (host?.startsWith("tcp://")) {
-    const url = new URL(host);
-    dockerApiClient = new Dockerode({ host: url.hostname, port: url.port ? Number(url.port) : 2375 });
-  } else {
-    dockerApiClient = new Dockerode({ socketPath: process.platform === "win32" ? "//./pipe/docker_engine" : "/var/run/docker.sock" });
-  }
-  return dockerApiClient;
+  return dockerClient();
 }
 
 /** 容器 inspect：不存在或出错返回 null（等价 CLI 的 `.catch(() => "")`）。 */
@@ -119,17 +114,119 @@ async function execCapture(container: string, cmd: string[], timeoutMs = 20_000)
  *  对老环境永远不生效；改成比对指纹，改了就自动重建镜像。 */
 const DOCKERFILE_LABEL = "agent-kit.dockerfile";
 
+/* ── 基础镜像来源 ─────────────────────────────────────────────────────
+ * 群容器镜像由 Dockerfile.group 在运行时构建，`FROM node:24-bookworm-slim` 要去 Docker Hub
+ * 拉基础镜像。国内网络直连 registry-1.docker.io 基本不通（实测 6s 直接超时），docker build
+ * 会先卡在拉取、再报 "failed to resolve source metadata"，表现为「云电脑开关一直打不开」。
+ * 所以构建前按「本地已有 → 官方 → 国内反代」把基础镜像备好：
+ *   - 本地已有直接复用，不联网；
+ *   - 反代拉回来的镜像 tag 回官方名字，Dockerfile 的 FROM 保持原样；
+ *   - 全部失败时抛可操作的错误（配 registry-mirrors / 指定镜像 / 指定反代）。
+ * 结果进程内缓存：探测加拉取可能几十秒到几分钟，不能每次开容器都重来。 */
+let baseImageReady: Promise<string> | undefined;
+
+function configuredBaseImage(): string {
+  return process.env.GROUP_BASE_IMAGE?.trim() || DEFAULT_BASE_IMAGE;
+}
+
+/** 本机是否已有该镜像（按 tag 查）。 */
+async function imagePresent(ref: string): Promise<boolean> {
+  try { await dockerApi().getImage(ref).inspect(); return true; } catch { return false; }
+}
+
+/** 注册表 HTTP 探测：拿到任何响应（200/302/401/403 都算）说明网络可达，超时/拒连算不可达。
+ *  先筛一遍，避免 docker pull 在黑洞地址上把 PULL_TIMEOUT 耗满。 */
+async function registryReachable(host: string): Promise<boolean> {
+  try {
+    await fetch(`https://${host}/v2/`, { signal: AbortSignal.timeout(PROBE_TIMEOUT), redirect: "manual" });
+    return true;
+  } catch { return false; }
+}
+
+/** 反代地址 → 完整镜像引用（基础镜像是官方 library 镜像，要补 library/ 前缀）。 */
+function mirroredRefs(): string[] {
+  const configured = process.env.GROUP_REGISTRY_MIRRORS?.split(",").map(item => item.trim()).filter(Boolean);
+  const hosts = configured?.length ? configured : DEFAULT_REGISTRY_MIRRORS;
+  return hosts.map(host => `${host.replace(/^https?:\/\//, "").replace(/\/+$/, "")}/library/${DEFAULT_BASE_IMAGE}`);
+}
+
+/** 拉一个镜像：成功返回空串，失败返回可读原因（换源重试时不让单次失败冒泡，
+ *  但要把原因收集起来——全部失败时错误信息里得能看出是哪一步断的）。 */
+function pullQuietly(ref: string): Promise<string> {
+  return docker(["pull", "-q", ref], PULL_TIMEOUT)
+    .then(() => "", error => String(error instanceof Error ? error.message : error).split(/\r?\n/)[0].slice(0, 160) || "pull_failed");
+}
+
+/** Docker 守护进程配置的 registry-mirrors（`/etc/docker/daemon.json` 或 Desktop 设置）。
+ *  有加速器时 `docker pull` 由 daemon 自己按镜像站顺序拉，即使直连 registry-1.docker.io
+ *  不通也能成功——这种情况下不能用 HTTP 探测把官方拉取否掉（Linux 服务器几乎都这么配）。 */
+let daemonMirrors: Promise<string[]> | undefined;
+function daemonRegistryMirrors(): Promise<string[]> {
+  if (!daemonMirrors) {
+    daemonMirrors = dockerApi().info()
+      .then(info => ((info as { RegistryConfig?: { Mirrors?: string[] | null } }).RegistryConfig?.Mirrors ?? [])
+        .filter((item): item is string => typeof item === "string" && !!item.trim()))
+      .catch(() => []);
+  }
+  return daemonMirrors;
+}
+
+async function ensureBaseImage(): Promise<string> {
+  const base = configuredBaseImage();
+  // 用户明确指定了基础镜像：尊重它，拉取交给 docker build 自己处理（可能是内网仓库）。
+  if (process.env.GROUP_BASE_IMAGE?.trim()) return base;
+  if (baseImageReady) return baseImageReady;
+  baseImageReady = (async () => {
+    if (await imagePresent(base)) return base;
+    const failures: string[] = [];
+    const mirrors = await daemonRegistryMirrors();
+    if (mirrors.length) {
+      // 走 daemon 的镜像加速：直接 pull，省掉一次可能误判的直连探测。
+      const error = await pullQuietly(base);
+      if (!error) return base;
+      failures.push(`docker.io（守护进程已配 ${mirrors.length} 个镜像加速）: ${error}`);
+    } else if (await registryReachable("registry-1.docker.io")) {
+      const error = await pullQuietly(base);
+      if (!error) return base;
+      failures.push(`docker.io: ${error}`);
+    } else failures.push("docker.io: 不可达（且守护进程未配镜像加速）");
+    for (const ref of mirroredRefs()) {
+      const host = ref.split("/")[0];
+      if (!await registryReachable(host)) { failures.push(`${host}: 不可达`); continue; }
+      const error = await pullQuietly(ref);
+      if (error) { failures.push(`${host}: ${error}`); continue; }
+      // 打回官方 tag，Dockerfile 的 FROM 保持原样；随后 docker build 直接用本地镜像。
+      await docker(["tag", ref, base], 60_000).catch(() => {});
+      if (await imagePresent(base)) return base;
+      failures.push(`${host}: 拉取成功但 tag 失败`);
+    }
+    throw new Error([
+      `base_image_unavailable: 无法获取基础镜像 ${base}`,
+      ...failures.map(item => `  - ${item}`),
+      "任选其一修复：",
+      "  1. 给 Docker 配镜像加速：Linux 写 /etc/docker/daemon.json 的 registry-mirrors 后 `systemctl restart docker`；macOS/Windows 用 Docker Desktop → Settings → Docker Engine；",
+      `  2. 指定已就绪的基础镜像：GROUP_BASE_IMAGE=<registry/namespace/${DEFAULT_BASE_IMAGE}>（内网仓库亦可）；`,
+      "  3. 指定可用反代：GROUP_REGISTRY_MIRRORS=host1,host2（逗号分隔多个）。",
+    ].join("\n"));
+  })().catch(error => { baseImageReady = undefined; throw error; });
+  return baseImageReady;
+}
+
 async function ensureImage(): Promise<void> {
   if (process.env.GROUP_BASH_IMAGE?.trim()) return;
   if (!imageBuild) imageBuild = (async () => {
     const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
     const dockerfile = path.join(root, "Dockerfile.group");
-    const digest = createHash("sha256").update(await readFile(dockerfile)).digest("hex").slice(0, 16);
+    // 先把基础镜像备好：国内直连 Docker Hub 会卡在拉取阶段。
+    const base = await ensureBaseImage();
+    // 指纹带上基础镜像：换源换了镜像也要重建，否则老镜像会一直被沿用。
+    const digest = createHash("sha256").update(await readFile(dockerfile)).update(`\nbase=${base}`).digest("hex").slice(0, 16);
     // 镜像不存在时 CLI 非零退出 → 当作指纹不匹配（需要构建）。
     const stamped = await docker(["image", "inspect", "-f", `{{index .Config.Labels "${DOCKERFILE_LABEL}"}}`, DEFAULT_IMAGE])
       .then(text => text.trim(), () => "");
     if (stamped === digest) return;
-    await docker(["build", "--quiet", "--label", `${DOCKERFILE_LABEL}=${digest}`, "-t", DEFAULT_IMAGE, "-f", dockerfile, root], 900_000);
+    await docker(["build", "--quiet", "--build-arg", `BASE_IMAGE=${base}`, "--label", `${DOCKERFILE_LABEL}=${digest}`,
+      "-t", DEFAULT_IMAGE, "-f", dockerfile, root], BUILD_TIMEOUT);
   })().catch(error => { imageBuild = undefined; throw error; });
   await imageBuild;
 }

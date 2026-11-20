@@ -211,10 +211,11 @@ POSTGRES_USER=postgres
 POSTGRES_DB=linger
 POSTGRES_PASSWORD=your_password
 
-# —— 语音（可选；不填则语音按钮自动禁用）——
-AGENT_KIT_ASR_PROVIDER=xiaomi
-AGENT_KIT_ASR_HOST=https://your-asr-host.example.com
-AGENT_KIT_ASR_API_KEY=
+# —— 腾讯云实时语音（语音输入统一走 WebSocket）——
+TENCENT_CLOUD_APP_ID=
+TENCENT_CLOUD_SECRET_ID=
+TENCENT_CLOUD_SECRET_KEY=
+TENCENT_ASR_ENGINE=16k_zh
 
 # —— 钉钉 OAuth（AUTH_PROVIDER=dingtalk 时必填）——
 DD_CLIENT_ID=xxx

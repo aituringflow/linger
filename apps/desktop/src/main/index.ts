@@ -107,7 +107,8 @@ if (!app.isPackaged) {
 }
 
 // Desktop reads client configuration only; session signing stays on the server.
-const ENV_KEYS = ["AGENT_KIT_ASR_PROVIDER", "AGENT_KIT_ASR_HOST", "AGENT_KIT_ASR_API_KEY", "WEB_SERVER_URL", "APP_PUBLIC_URL", "AUTH_PROVIDER", "PORT"] as const;
+// 腾讯云密钥只在 Web 服务端读取，桌面端仅请求 /api/audio/session 获取临时签名 URL。
+const ENV_KEYS = ["WEB_SERVER_URL", "APP_PUBLIC_URL", "AUTH_PROVIDER", "PORT"] as const;
 const envFiles = [
   path.join(app.getAppPath(), ".env"),
   // Packaged builds include only public client configuration.

@@ -97,7 +97,7 @@ import { isInvalidGeneratedTitle } from "./chat/modelList.ts";
 import { fileToBase64, messagePreviewText } from "./chat/messageUtils.ts";
 import { IS_ELECTRON, AGENT_HOST, canPickWorkspace } from "./chat/platform.ts";
 import { contextUsedTokens } from "./chat/usage.ts";
-import { useVoiceDictation, createDictationTranscriber, type VoiceTranscriber, type VoiceDictationError } from "@summersmile/voice-dictation";
+import { useTencentRealtimeDictation } from "./chat/useTencentRealtimeDictation.ts";
 import { createTencentRealtimeRecorder, type RealtimeRecorderHandle } from "./chat/tencentRealtimeRecorder.ts";
 import { ChatSessionContext } from "./chatSession.tsx";
 
@@ -284,9 +284,10 @@ function AgentWindowContent({
   voiceTranscribeEndpoint,
   voicePreviewOnly = false,
   /** 实时转录开关：按住语音键走腾讯云 WebSocket 边说边出字，而非录完整段再上传。 */
-  voiceRealtimeTranscription = false,
+  voiceRealtimeTranscription = true,
   /** 实时转录会话签发端点（POST 后返回 wss URL）；缺省用 basePath/api/audio/session。 */
   voiceRealtimeSessionEndpoint,
+  onVoiceAuthRequired,
   showVoiceButton,
   uploadEnabled = true,
   title: titleProp,
@@ -2909,123 +2910,93 @@ function AgentWindowContent({
     };
   }, [isLoggedIn, basePath, embeddedMode, localOwner]);
 
-  // ============ 语音输入（voice-dictation SDK，端点由宿主 basePath 决定）============
+  // ============ 腾讯云实时语音输入（所有入口统一走 WebSocket）============
   const [mobileVoiceMode, setMobileVoiceMode] = useState(() => voiceEnabled && readMobileVoiceMode());
   const [mobileHolding, setMobileHolding] = useState(false);
   const [rightCtrlRecording, setRightCtrlRecording] = useState(false);
   const [mobileCancelArmed, setMobileCancelArmed] = useState(false);
-  // 实时转录（腾讯云 WebSocket）专用：recorder 句柄 + 累计文本。
-  const realtimeRecorderRef = useRef<RealtimeRecorderHandle | null>(null);
-  const realtimeTextRef = useRef("");
-  // 实时转录（点按麦克风按钮）是否在录音中：用于驱动输入框麦克风按钮的「录音/停止」态，
-  // 与 dictation 的 recording/transcribing 相互独立（二者不会同时走）。
-  const [realtimeActive, setRealtimeActive] = useState(false);
-  const voiceSendPendingRef = useRef(false);
   const voiceStartSidRef = useRef("");
   const voiceStartedAtRef = useRef(0);
+  const voiceSendPendingRef = useRef(false);
   const pendingVoiceRef = useRef<UiVoiceRecording | null>(null);
-  /**
-   * 语音预览模式：**只录音不转写**。
-   *
-   * 麦克风照常打开，所以 amplitude（音量）是真实的、波形会跟着人说话动；
-   * 但转写通道被换成一个永远返回空串的本地实现 —— 松手后不请求转写端点、
-   * 不落音频文件、不产生任何费用。用来在没有 ASR 凭据、或只想先看动画效果时用。
-   *
-   * 注意：不能靠"把 endpoint 指到无效地址"来达到同样目的 —— 那仍会发一次网络请求
-   * （可能真的扣费），所以这里必须在**调用方**就把通道换掉。
-   */
-  const previewTranscriber = useMemo<VoiceTranscriber>(
-    () => async () => "",
-    []
-  );
-  const dictationTranscriber = useMemo(
-    () =>
-      voiceEnabled
-        ? voicePreviewOnly
-          ? previewTranscriber
-          : createDictationTranscriber({
-            // 端点可被宿主覆盖：Electron 本地版页面 origin 上没有后端，
-            // 需要指向它自己启动的本机 Agent 服务；Web/local 默认走 basePath 同源即可。
-            endpoint: voiceTranscribeEndpoint ?? `${basePath}/api/voice/transcribe`,
-            fetchImpl: async (input, init) => {
-              const persist = voiceSendPendingRef.current && voiceStartSidRef.current === activeSidRef.current;
-              if (persist && init?.body instanceof FormData) {
-                init.body.append("persist", "1");
-                init.body.append("durationMs", String(Date.now() - voiceStartedAtRef.current));
-              }
-              const response = await apiFetch(input, init);
-              if (persist && response.ok) {
-                const data = await response.clone().json().catch(() => ({})) as { recording?: UiVoiceRecording };
-                pendingVoiceRef.current = data.recording ?? null;
-              }
-              return response;
-            },
-            getToken: async () => {
-              const response = await apiFetch(voiceTokenEndpoint ?? `${basePath}/api/voice/token`, { method: "POST" });
-              if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.error || "无法获取语音令牌");
-              }
-              const data = await response.json();
-              return data.token;
-            },
-          })
-        : null,
-    [basePath, voiceEnabled, voiceTokenEndpoint, voiceTranscribeEndpoint, voicePreviewOnly, previewTranscriber]
-  );
-
-  const dictation = useVoiceDictation({
-    // voiceEnabled=false 时 transcriber 为 null：SDK 运行时对 null 通道安全跳过（初始化不触发录音）；
-    // 类型层面 VoiceTranscriber 为非空，这里按运行时语义断言即可。
-    transcribe: dictationTranscriber as unknown as VoiceTranscriber,
-    // 单次录音硬上限 10 分钟：到点自动截断并转写，结果按当前输入方式处理。
-    hardStopMs: MAX_RECORDING_MS,
-    onTranscribed: (text: string) => {
-      setRightCtrlRecording(false);
-      const trimmed = (text || "").trim();
-      setVoiceError("");
-      if (!trimmed) return;
-      if (voiceSendPendingRef.current) {
-        voiceSendPendingRef.current = false;
-        const voice = pendingVoiceRef.current;
-        pendingVoiceRef.current = null;
-        if (voiceStartSidRef.current !== activeSidRef.current) return;
-        if (!voice?.fileId) {
-          setVoiceError("录音未能保存，请重试");
-          return;
-        }
-        if (modelSendBlocked || contentLoading || uploading) {
-          setVoiceError("当前暂时无法发送，请稍后重录");
-          return;
-        }
-        handleSend(trimmed, voice);
-      } else {
-        composerRef.current?.appendText(trimmed); // 桌面端及移动端听写键沿用原行为
+  const realtimeRecorderRef = useRef<RealtimeRecorderHandle | null>(null);
+  const [realtimeActive, setRealtimeActive] = useState(false);
+  const realtimeTextRef = useRef("");
+  const realtimeDraftRef = useRef("");
+  const voiceInsertionRef = useRef<{ start: number; end: number } | null>(null);
+  const captureVoiceInsertionPoint = () => {
+    const text = composerRef.current?.getText() ?? "";
+    realtimeDraftRef.current = text;
+    voiceInsertionRef.current = composerRef.current?.getSelection() ?? {
+      start: text.length,
+      end: text.length,
+    };
+  };
+  const promptVoiceLogin = () => {
+    if (onVoiceAuthRequired) {
+      onVoiceAuthRequired();
+      return;
+    }
+    window.location.replace(`${basePath}/login${loginProviders ? `?providers=${encodeURIComponent(loginProviders)}` : ""}`);
+  };
+  const handleVoiceStartError = (error: unknown) => {
+    const authError = error as { code?: string };
+    if (!isLoggedIn || authError?.code === "auth") {
+      promptVoiceLogin();
+      return;
+    }
+    setVoiceError(error instanceof Error ? error.message : "实时语音启动失败");
+  };
+  const dictation = useTencentRealtimeDictation({
+    endpoint: voiceRealtimeSessionEndpoint ?? `${basePath}/api/audio/session`,
+    enabled: voiceEnabled,
+    amplitudeRef: voiceAmplitudeRef,
+    onText: (text) => {
+      // 腾讯云每次返回的是累计全文；固定录音开始时的文本和光标，实时预览始终替换同一段。
+      if (!realtimeTextRef.current && !voiceInsertionRef.current) captureVoiceInsertionPoint();
+      realtimeTextRef.current = text;
+      const draft = realtimeDraftRef.current;
+      const point = voiceInsertionRef.current;
+      if (!point) {
+        composerRef.current?.setText(text);
+        return;
       }
+      const before = draft.slice(0, point.start);
+      const after = draft.slice(point.end);
+      const sep = before && !/\s$/.test(before) ? " " : "";
+      const next = `${before}${sep}${text}${after}`;
+      composerRef.current?.setText(next, point.start + sep.length + text.length);
     },
-    onError: (error: VoiceDictationError) => {
+    onFinished: (text) => {
       setRightCtrlRecording(false);
-      voiceSendPendingRef.current = false;
-      pendingVoiceRef.current = null;
+      setVoiceError("");
+      if (!text) return;
+      if (voiceStartSidRef.current && voiceStartSidRef.current !== activeSidRef.current) return;
+      const point = voiceInsertionRef.current;
+      if (point) {
+        const draft = realtimeDraftRef.current;
+        const before = draft.slice(0, point.start);
+        const after = draft.slice(point.end);
+        const sep = before && !/\s$/.test(before) ? " " : "";
+        const next = `${before}${sep}${text}${after}`;
+        composerRef.current?.setText(next, point.start + sep.length + text.length);
+      } else {
+        composerRef.current?.appendText(text);
+      }
+      realtimeTextRef.current = "";
+      realtimeDraftRef.current = "";
+      voiceInsertionRef.current = null;
+    },
+    onError: (error) => {
+      setRightCtrlRecording(false);
       setMobileHolding(false);
       setMobileCancelArmed(false);
-      console.error("[voice-input] error", error);
-      setVoiceError(!window.isSecureContext && error?.kind === "unsupported"
-        ? "当前局域网 HTTP 地址无法使用麦克风，请通过 HTTPS 访问（本机可用 localhost）"
-        : error?.message || "语音输入暂时不可用，请稍后重试");
+      setVoiceError(error.message || "实时语音输入暂时不可用");
     },
   });
-
-  const recording = dictation.state === "recording" || (voiceRealtimeTranscription && realtimeActive);
-  const transcribing = dictation.state === "transcribing";
+  const recording = dictation.state === "recording";
+  const transcribing = false;
   const recordingSeconds = dictation.elapsedSec;
-  useEffect(() => {
-    if (transcribing) setRightCtrlRecording(false);
-    if (transcribing && mobileHolding) {
-      setMobileHolding(false);
-      setMobileCancelArmed(false);
-    }
-  }, [transcribing, mobileHolding]);
 
   // 语音录制状态 + 实时音量上报给宿主（用于 Dock 上的声波指示）：
   //  · 状态走回调：低频（按下/松开各一次），宿主可以 setState 切换 UI；
@@ -3068,6 +3039,7 @@ function AgentWindowContent({
 
   // ============ 实时转录（腾讯云 WebSocket，边说边出字） ============
   // 与 dictation SDK（录完整段再上传）互斥：voiceRealtimeTranscription=true 时走这条链。
+  /* legacy realtime helper removed: all voice input uses useTencentRealtimeDictation */
   async function startRealtimeVoice() {
     if (!window.isSecureContext) {
       setVoiceError("当前环境无法使用麦克风");
@@ -3119,37 +3091,19 @@ function AgentWindowContent({
   }
 
   const toggleVoiceInput = () => {
-    // 实时转录（腾讯云 wss）开启时，输入框里的麦克风按钮也走这条链：点按开始录音（边说边出字），
-    // 再点停止并保留文本，不再录完整段上传到本地 /api/voice/transcribe。
-    if (voiceRealtimeTranscription) {
-      if (realtimeActive) {
-        void stopRealtimeVoice();
-      } else {
-        if (!window.isSecureContext) {
-          setVoiceError("当前环境无法使用麦克风");
-          return;
-        }
-        setVoiceError("");
-        void startRealtimeVoice();
-      }
+    if (dictation.state === "recording") {
+      void dictation.stop();
       return;
     }
-    if (dictation.state === "transcribing") {
-      voiceSendPendingRef.current = false;
-      pendingVoiceRef.current = null;
-      dictation.cancel();
+    // 登出时 hook 可能因 enabled=false 直接忽略 start，必须在入口显式触发登录提示。
+    // remoteAuthenticated 是真实云端登录态；isLoggedIn 可能仅代表本地 guest/缓存身份，不能据此放行语音。
+    if (!remoteAuthenticated) {
+      promptVoiceLogin();
       return;
     }
-    voiceSendPendingRef.current = false;
-    if (dictation.state === "recording") dictation.stop();
-    else {
-      if (!window.isSecureContext) {
-        setVoiceError("当前局域网 HTTP 地址无法使用麦克风，请通过 HTTPS 访问（本机可用 localhost）");
-        return;
-      }
-      setVoiceError("");
-      dictation.start();
-    }
+    realtimeTextRef.current = "";
+    captureVoiceInsertionPoint();
+    void dictation.start().catch(handleVoiceStartError);
   };
 
   const toggleMobileVoiceMode = () => {
@@ -3177,8 +3131,9 @@ function AgentWindowContent({
     onBegin: (bounds, x, y) => {
       if (dictation.state !== "idle") return;
       const cancelArmed = x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom;
-      voiceStartSidRef.current = activeSidRef.current;
-      voiceStartedAtRef.current = Date.now();
+    voiceStartSidRef.current = activeSidRef.current;
+    voiceStartedAtRef.current = Date.now();
+    captureVoiceInsertionPoint();
       pendingVoiceRef.current = null;
       voiceSendPendingRef.current = true;
       dictation.setFinishIntent(cancelArmed ? "cancel" : "send");
@@ -7065,6 +7020,8 @@ function AgentWindowContent({
               canInvite
               onInvite={openInvite} onStarted={(members) => { homeRoutedNamesRef.current = null; homeSelectedGroupRef.current = null; homeSelectedContactsRef.current = []; setHomeSelectedChips([]); homeMentionKeyRef.current = ""; setHomeGroupRecipients([]); setConversationMembers(members); setConversationOwnerSub(selfSub); setPendingMembers([]); void refreshSessions(); }}
               onMembersRemoved={(ids) => setConversationMembers(current => current.filter(m => !ids.includes(m.contactId)))}
+              onVoiceAuthRequired={promptVoiceLogin}
+              voiceAuthenticated={remoteAuthenticated}
               onSessionEnded={(kind) => { if (kind === "dissolve") endedSessionIdsRef.current.add(activeSid); setSessions((list) => list.filter((item) => item.id !== activeSid)); if (activeSid === sessionId) newSession(); }}
               onTitleChange={(value) => { setSessions((list) => list.some((session) => session.id === activeSid)
                 ? list.map((session) => session.id === activeSid ? { ...session, title: value } : session)

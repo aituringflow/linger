@@ -20,7 +20,7 @@ const kitDependencies: string[] = Object.keys(
 /**
  * 纯 ESM 依赖：package.json 的 "." 导出只有 import（没有 require / default），
  * 或者 type: module 且没有可供 CJS 入口的 main。这类包一旦被外部化，运行期 require
- * 必抛 ERR_PACKAGE_PATH_NOT_EXPORTED（@openai/codex-sdk、@summersmile/voice-dictation 都是这样），
+ * 必抛 ERR_PACKAGE_PATH_NOT_EXPORTED（@openai/codex-sdk 等纯 ESM 包都可能如此），
  * 所以必须交给 rollup 打进 bundle，不能留在 node_modules 里等 require。
  */
 function isEsmOnly(name: string): boolean {

@@ -143,7 +143,7 @@ SDK 没有构建或发布流程，两个 app 都直接编译 `src`。
 | `AGENT_MODELS_PATH` | — | `models.json` 文件或其所在目录 |
 | `AGENT_ARTIFACT_DIR_NAME` | `.agent-files` | 产物根目录名；声明了应用名时为 `.<应用名>` |
 | `TENCENT_CLOUD_APP_ID`、`TENCENT_CLOUD_SECRET_ID`、`TENCENT_CLOUD_SECRET_KEY` | — | 腾讯云实时语音识别凭据，保留在服务端 |
-| `AGENT_KIT_ASR_PROVIDER`、`AGENT_KIT_ASR_HOST`、`AGENT_KIT_ASR_API_KEY` | — | 可选的通用语音转写服务 |
+| `TENCENT_ASR_ENGINE` | `16k_zh` | 腾讯云实时语音识别引擎；语音输入统一走实时 WebSocket |
 | `AGENT_KIT_LOG_LEVEL` | `info` | 服务端详细日志设 `debug` |
 | `POSTGRES_HOST/PORT/USER/DB/PASSWORD` | — | 开启服务端持久化与群聊；建表落在 `linger` schema |
 | `PORT` | `3100` | Web 端口 |

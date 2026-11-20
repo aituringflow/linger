@@ -362,6 +362,8 @@ export interface AgentWindowProps {
   voiceRealtimeTranscription?: boolean;
   /** 实时转录会话签发端点（POST 后返回 wss URL）；缺省 basePath/api/audio/session。 */
   voiceRealtimeSessionEndpoint?: string;
+  /** 未登录时点击输入框语音按钮的处理回调（桌面端打开登录窗口，Web 端可跳转登录页）。 */
+  onVoiceAuthRequired?: () => void;
   /** 是否启用附件上传 */
   uploadEnabled?: boolean;
   /** 顶栏标题 */

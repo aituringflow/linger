@@ -566,11 +566,12 @@ async function checkWebPush(): Promise<CheckResult> {
 }
 
 async function checkAsr(): Promise<CheckResult> {
-  const host = process.env.AGENT_KIT_ASR_HOST || process.env.BRANDAGENT_ASR_HOST;
-  const key = process.env.AGENT_KIT_ASR_API_KEY || process.env.BRANDAGENT_ASR_API_KEY;
-  return host && key
-    ? { status: "ok", detail: "语音转写通道已配置" }
-    : { status: "disabled", detail: "未配置 ASR_HOST / ASR_API_KEY（可选，未启用语音转写可忽略）" };
+  const appId = process.env.TENCENT_CLOUD_APP_ID?.trim();
+  const secretId = process.env.TENCENT_CLOUD_SECRET_ID?.trim();
+  const secretKey = process.env.TENCENT_CLOUD_SECRET_KEY?.trim();
+  return (appId || (secretId && secretKey))
+    ? { status: "ok", detail: "腾讯云实时语音识别已配置" }
+    : { status: "disabled", detail: "未配置 TENCENT_CLOUD_APP_ID，或 TENCENT_CLOUD_SECRET_ID / TENCENT_CLOUD_SECRET_KEY" };
 }
 
 /* ── 注册表 ───────────────────────────────────────────────────────── */
@@ -597,7 +598,7 @@ const COMPONENTS: ComponentDef[] = [
   { id: "codebuddy", name: "CodeBuddy 凭据", category: "auth", required: "默认对话通道", installable: false, installHint: "需运行服务账号执行一次登录", check: checkCodebuddy },
   { id: "codex", name: "Codex CLI", category: "auth", required: "可选（AGENT_PROVIDER=codex 时）", installable: true, installHint: "自动执行 npm install -g @openai/codex", check: checkCodex },
   { id: "web-push", name: "Web Push VAPID", category: "config", required: "浏览器离线通知", installable: true, installHint: "自动生成密钥对，需手动写入 .env", check: checkWebPush },
-  { id: "asr", name: "语音转写配置", category: "config", required: "可选（语音转写功能）", installable: false, installHint: "需在 .env 配置 ASR_HOST / ASR_API_KEY", check: checkAsr },
+  { id: "asr", name: "腾讯云实时语音配置", category: "config", required: "语音输入必需", installable: false, installHint: "需在 .env 配置腾讯云实时语音凭据", check: checkAsr },
 ];
 
 export async function listComponentReports(): Promise<ComponentReport[]> {

@@ -5,7 +5,7 @@ import { ASSISTANT_NAME } from "../../shared/assistant-name.ts";
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useVoiceDictation, createDictationTranscriber, type VoiceTranscriber, type VoiceDictationError } from "@summersmile/voice-dictation";
+import { useTencentRealtimeDictation } from "../chat/useTencentRealtimeDictation.ts";
 import UserBubble from "../chat/UserBubble.tsx";
 import LinkPreviewCard from "../chat/LinkPreviewCard.tsx";
 import { tokenizeLinks } from "../chat/linkify.tsx";
@@ -189,7 +189,7 @@ type State = { messages: Message[]; run: Run | null; reactions: Reaction[];
 
 export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, rightCtrlVoice, showVoiceButton, previewFull, selfSub, selfName, selfAvatar, members, pendingMembers,
   models, codexModels, modes: availableModes, modelSelectionEnabled, canInvite, onInvite, onStarted, onTitleChange, onGroupAvatarChange, onMessagePreview, onSidebar, onBack, onRightPanel, onMobileSettingsBack, onOpenFile, rightShown, onMonologuesChange, initialSubmission, onSubmissionConsumed, sessions, onForwarded, onMembersRemoved, capabilities, referenceSources = [], renderToolbar, initialDraftCaret, onInitialDraftRestored,
-  initialMode, initialModel, initialCodexModel, muted, onMutedChange, aiMuted, onAiMutedChange, jumpMessageId, onJumpComplete, onSessionEnded, onHomeDraftChange, onMessageSubmitted, homeRecipientChips, onRemoveHomeRecipient }: {
+  initialMode, initialModel, initialCodexModel, muted, onMutedChange, aiMuted, onAiMutedChange, jumpMessageId, onJumpComplete, onSessionEnded, onVoiceAuthRequired, voiceAuthenticated, onHomeDraftChange, onMessageSubmitted, homeRecipientChips, onRemoveHomeRecipient }: {
   basePath: string; sessionId: string; title: string; sessionTitle: string; rightCtrlVoice: boolean; showVoiceButton?: boolean; previewFull: boolean; selfSub: string; selfName: string; selfAvatar?: string;
   renderToolbar?: (settings: { open: boolean; label: string; title: string; toggle: () => void }) => ReactNode;
   onHomeDraftChange?: (value: string, caret: number) => boolean | void;
@@ -226,6 +226,9 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
   jumpMessageId?: number | null; onJumpComplete?: () => void;
   /** 当前会话被「解散群组 / 退出群组」后，通知宿主关闭该会话并刷新列表。 */
   onSessionEnded?: (kind: "leave" | "dissolve" | "delete") => void;
+  /** 未登录点击语音时，复用宿主的登录入口。 */
+  onVoiceAuthRequired?: () => void;
+  voiceAuthenticated?: boolean;
 }) {
   const t = useChatTranslation();
   const modes = useMemo(() => { const supported = availableModes.filter(item => item === "codebuddy" || item === "codex"); return supported.length ? supported : ["codebuddy"]; }, [availableModes]);
@@ -819,92 +822,73 @@ export default function CoworkPanel({ basePath, sessionId, title, sessionTitle, 
     ? <CoworkMarkdownBubble text={content} mentionNames={knownNames} basePath={basePath} />
     : <UserBubble text={content} renderText={renderHuman} basePath={basePath} collapseThreshold={1000} />;
 
-  // 语音输入：复用单聊同一套听写通道（/api/voice/*），识别结果回填到输入框。
-  const dictationTranscriber = useMemo(() => voiceEnabled
-    ? createDictationTranscriber({
-        endpoint: `${basePath}/api/voice/transcribe`,
-        fetchImpl: async (input, init) => {
-          // 仅长按「松开发送」链路 persist 保存原始录音并取回 fileId；点按转写不保存。
-          const persist = voiceSendPendingRef.current;
-          if (persist && init?.body instanceof FormData) {
-            init.body.append("persist", "1");
-            init.body.append("durationMs", String(Date.now() - voiceStartedAtRef.current));
-          }
-          const response = await apiFetch(input, init);
-          if (persist && response.ok) {
-            const data = await response.clone().json().catch(() => ({})) as { recording?: UiVoiceRecording };
-            pendingVoiceRef.current = data.recording ?? null;
-          }
-          return response;
-        },
-        getToken: async () => {
-          const response = await apiFetch(`${basePath}/api/voice/token`, { method: "POST" });
-          if (!response.ok) throw new Error("无法获取语音令牌");
-          const data = await response.json() as { token?: string };
-          return data.token ?? "";
-        },
-      })
-    : null,
-    [basePath, voiceEnabled]);
-  const dictation = useVoiceDictation({
-    transcribe: dictationTranscriber as unknown as VoiceTranscriber,
-    hardStopMs: 10 * 60 * 1000,
-    onTranscribed: (transcript: string) => {
-      setRightCtrlRecording(false);
-      const trimmed = (transcript || "").trim();
-      setVoiceError("");
-      if (voiceSendPendingRef.current) {
-        // 长按「松开发送」：录音文件（fileId）+ 转写文字一起发出，对齐人机逻辑。
-        voiceSendPendingRef.current = false;
-        const voice = pendingVoiceRef.current;
-        pendingVoiceRef.current = null;
-        if (!voice?.fileId) {
-          setVoiceError("录音未能保存，请重试");
-          return;
-        }
-        if (sending) {
-          setVoiceError("当前暂时无法发送，请稍后重录");
-          return;
-        }
-        void sendRef.current(trimmed, undefined, undefined, 0, null, voice);
-      } else if (trimmed) {
-        composerRef.current?.appendText(trimmed);
-      }
+  // 语音输入：实时识别只回填输入框，停止后由用户自行点击发送。
+  const voiceInsertionRef = useRef<{ text: string; start: number; end: number } | null>(null);
+  const captureVoiceInsertionPoint = () => {
+    const text = composerRef.current?.getText() ?? "";
+    const selection = composerRef.current?.getSelection() ?? { start: text.length, end: text.length };
+    voiceInsertionRef.current = { text, start: selection.start, end: selection.end };
+  };
+  const dictation = useTencentRealtimeDictation({
+    endpoint: `${basePath}/api/audio/session`,
+    enabled: voiceEnabled,
+    onText: (text) => {
+      const point = voiceInsertionRef.current;
+      if (!point) { composerRef.current?.setText(text); return; }
+      const before = point.text.slice(0, point.start);
+      const after = point.text.slice(point.end);
+      const sep = before && !/\s$/.test(before) ? " " : "";
+      composerRef.current?.setText(`${before}${sep}${text}${after}`, point.start + sep.length + text.length);
     },
-    onError: (error: VoiceDictationError) => {
+    onFinished: (text) => {
       setRightCtrlRecording(false);
-      console.error("[voice-input] error", error);
-      // 复位长按发送链路，避免失败后残留待发态
-      voiceSendPendingRef.current = false;
-      pendingVoiceRef.current = null;
-      // 长按录制失败（权限拒绝/非安全上下文等）：复位长按态，避免提示条残留
+      if (!text) return;
+      const point = voiceInsertionRef.current;
+      if (point) {
+        const before = point.text.slice(0, point.start);
+        const after = point.text.slice(point.end);
+        const sep = before && !/\s$/.test(before) ? " " : "";
+        composerRef.current?.setText(`${before}${sep}${text}${after}`, point.start + sep.length + text.length);
+      } else {
+        composerRef.current?.appendText(text);
+      }
+      voiceInsertionRef.current = null;
+    },
+    onError: (error) => {
+      setRightCtrlRecording(false);
       setHoldRecording(false);
       setHoldCancelArmed(false);
-      setVoiceError(!window.isSecureContext && error?.kind === "unsupported"
-        ? "当前局域网 HTTP 地址无法使用麦克风，请通过 HTTPS 访问（本机可用 localhost）"
-        : error?.message || "语音输入暂时不可用");
+      setVoiceError(error.message || "实时语音输入暂时不可用");
     },
   });
   const recording = dictation.state === "recording";
-  const transcribing = dictation.state === "transcribing";
-  useEffect(() => { if (transcribing) setRightCtrlRecording(false); }, [transcribing]);
+  const transcribing = false;
+  const requestVoiceLogin = () => {
+    if (onVoiceAuthRequired) {
+      onVoiceAuthRequired();
+      return;
+    }
+    window.location.replace(`${basePath}/login`);
+  };
   const toggleVoiceInput = () => {
-    if (dictation.state === "transcribing") {
-      voiceSendPendingRef.current = false;
-      pendingVoiceRef.current = null;
-      dictation.cancel();
+    if (dictation.state === "recording") {
+      void dictation.stop();
       return;
     }
-    if (dictation.state === "recording") { dictation.stop(); return; }
-    if (!window.isSecureContext) {
-      setVoiceError("当前局域网 HTTP 地址无法使用麦克风，请通过 HTTPS 访问（本机可用 localhost）");
+    // 登出时 hook 会因 enabled=false 静默跳过 start，入口必须显式触发登录提示。
+    if (!voiceAuthenticated) {
+      requestVoiceLogin();
       return;
     }
-    // 点按为普通语音转写（回填输入框），明确退出长按发送链路。
-    voiceSendPendingRef.current = false;
-    pendingVoiceRef.current = null;
-    setVoiceError("");
-    dictation.start();
+    captureVoiceInsertionPoint();
+    void dictation.start().catch((error) => {
+      const authError = error as { code?: string };
+      if (authError.code === "auth" || !voiceAuthenticated) {
+        requestVoiceLogin();
+        return;
+      }
+      setVoiceError(error instanceof Error ? error.message : "实时语音启动失败");
+    });
   };
 
   // 点按进入/退出「按住说话」模式：进入时收起键盘、隐藏输入框；退出时复位录音链路并交还焦点。

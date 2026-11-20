@@ -118,7 +118,8 @@ export async function createTencentRealtimeRecorder({
       stopping = true;
       await release();
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "end" }));
-      window.setTimeout(() => socket.close(), 1500);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 1500));
+      socket.close();
     },
     cancel: async () => {
       stopping = true;

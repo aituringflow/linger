@@ -144,7 +144,7 @@ The variables most people need:
 | `AGENT_MODELS_PATH` | — | `models.json` file or its directory |
 | `AGENT_ARTIFACT_DIR_NAME` | `.agent-files` | Artifact root directory name; `.<app name>` when a name is declared |
 | `TENCENT_CLOUD_APP_ID`, `TENCENT_CLOUD_SECRET_ID`, `TENCENT_CLOUD_SECRET_KEY` | — | Tencent Cloud speech recognition credentials, kept server-side |
-| `AGENT_KIT_ASR_PROVIDER`, `AGENT_KIT_ASR_HOST`, `AGENT_KIT_ASR_API_KEY` | — | Optional generic voice transcription service |
+| `TENCENT_ASR_ENGINE` | `16k_zh` | Tencent Cloud realtime speech recognition engine; all voice input uses realtime WebSocket |
 | `AGENT_KIT_LOG_LEVEL` | `info` | `debug` for verbose server logs |
 | `POSTGRES_HOST/PORT/USER/DB/PASSWORD` | — | Enables server persistence and cowork. Tables are created in the `linger` schema |
 | `PORT` | `3100` | Web port |

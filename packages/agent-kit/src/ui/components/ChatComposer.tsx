@@ -29,6 +29,9 @@ export interface ChatComposerHandle {
   /** 读取当前输入框文字（提示词增强等功能在点击时刻取原文用） */
   getText: () => string;
   appendText: (t: string) => void;
+  /** 在指定光标/选区位置插入文字；用于录音开始时锁定插入点的语音回填。 */
+  insertTextAt: (t: string, start: number, end?: number) => void;
+  getSelection: () => { start: number; end: number };
   sendNow: () => void;
   focus: () => void;
   flushDraft: () => void;
@@ -238,6 +241,27 @@ const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function 
     onSend(text);
   };
 
+  const insertTextAt = useCallback((t: string, start: number, end = start) => {
+    const trimmed = (t || "").trim();
+    if (!trimmed) return;
+    const cur = inputRef.current;
+    const safeStart = Math.max(0, Math.min(start, cur.length));
+    const safeEnd = Math.max(safeStart, Math.min(end, cur.length));
+    const before = cur.slice(0, safeStart);
+    const sep = before && !/\s$/.test(before) ? " " : "";
+    const next = `${before}${sep}${trimmed}${cur.slice(safeEnd)}`;
+    const caret = safeStart + sep.length + trimmed.length;
+    inputRef.current = next;
+    setInput(next);
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      ta.focus({ preventScroll: true });
+      ta.setSelectionRange(caret, caret);
+    });
+    onValueChange?.(next, caret);
+  }, [onValueChange]);
+
   useImperativeHandle(ref, () => ({
     setText: (t: string, caret?: number) => {
       inputRef.current = t;
@@ -252,28 +276,18 @@ const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function 
       });
     },
     appendText: (t: string) => {
-      const trimmed = (t || "").trim();
-      if (!trimmed) return;
       const el = textareaRef.current;
       const cur = inputRef.current;
       const start = el ? (el.selectionStart ?? cur.length) : cur.length;
       const end = el ? (el.selectionEnd ?? start) : start;
-      // 插入语义：无选中且光标在文末时与「追加」等价；选中/光标在句中时插入到该处。
-      // 前文以非空白结尾时补一个空格隔开，保持转写文字的可读性。
-      const before = cur.slice(0, start);
-      const sep = before && !/\s$/.test(before) ? " " : "";
-      const next = `${before}${sep}${trimmed}${cur.slice(end)}`;
-      const caret = start + sep.length + trimmed.length;
-      inputRef.current = next;
-      setInput(next);
-      // 转写插入后：光标落到插入文字末尾并聚焦，用户可继续手动输入或再次按住语音键继续追加。
-      requestAnimationFrame(() => {
-        const ta = textareaRef.current;
-        if (!ta) return;
-        ta.focus({ preventScroll: true });
-        ta.setSelectionRange(caret, caret);
-      });
-      onValueChange?.(next, caret);
+      insertTextAt(t, start, end);
+    },
+    insertTextAt,
+    getSelection: () => {
+      const el = textareaRef.current;
+      const cur = inputRef.current;
+      const start = el?.selectionStart ?? cur.length;
+      return { start, end: el?.selectionEnd ?? start };
     },
     getText: () => inputRef.current,
     sendNow: () => submit(),

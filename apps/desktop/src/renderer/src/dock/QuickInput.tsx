@@ -317,7 +317,12 @@ export default function QuickInput({ onTextPresenceChange, onContentPresenceChan
       focused={focused}
       minimized={minimized}
       voiceFirstMinimal={state.voiceFirstMinimal.includes(windowId)}
-      voiceFirstSurface={state.voiceFirstMinimal.includes(windowId) || Boolean(preview && launcher.voiceFirst && (state.voiceRecordingWindow === windowId || state.voiceTranscribingWindow === windowId))}
+      /* 极简语音面只由「真正的语音优先会话」触发（voiceFirstMinimal）。
+         曾经把「录音中」也算进来：预览卡上点输入框麦克风的瞬间就会套上语音优先尺寸
+         （height:170px + 贴 Home 悬浮条），停止后又掉回预览尺寸 ——
+         表现为整个输入框从上方砸下来。录音只该改变输入区自身的视觉（声波/占位提示），
+         不能动窗口几何，否则输入框位置永远跟录音状态绑在一起。 */
+      voiceFirstSurface={state.voiceFirstMinimal.includes(windowId)}
     >
       {/* 动态壁纸（熔火龙境）的燃烧特效：主窗口与「新建窗口」实例都叠火焰输入卡；          数域窗口不叠（数域有自己的主题色描边）。 */}
       <DynamicComposer skin={isHomeChatWindow(windowId) ? skinId === "wp4" ? "fire" : skinId === "wp5" ? "water" : skinId === "wp6" ? "gold" : null : null}
@@ -376,8 +381,12 @@ export default function QuickInput({ onTextPresenceChange, onContentPresenceChan
           // 本机 local-agent 没有登录态，verifySession 会 401。
           // 这里传的是语音优先的总开关：kit 只关心"实时 ASR 开不开"（开了它就把按住说话让给
           // Launcher 的全局接管），自动发送 / 窗口自动消失都由 launcher 自己实现。
-          voiceRealtimeTranscription={launcher.voiceFirst ?? false}
+          voiceRealtimeTranscription={launcher.voiceFirst ?? true}
           voiceRealtimeSessionEndpoint={cloud ? `${cloud.base}/api/audio/session` : undefined}
+          onVoiceAuthRequired={() => {
+            const theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+            void window.launcher.openLogin(theme);
+          }}
           // 录音态 + 实时音量上报给 Dock：Home 圆钮上播声波。
           // 音量走 ref（每帧变），录音态走回调（按下/松开各一次）。
           onVoiceStateChange={(active) => {

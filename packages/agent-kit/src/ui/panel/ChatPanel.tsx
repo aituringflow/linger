@@ -112,7 +112,6 @@ import { isInvalidGeneratedTitle } from "../chat/modelList.ts";
 import { fileToBase64, stripAttachmentLine, formatDuration, messagePreviewText } from "../chat/messageUtils.ts";
 import { IS_ELECTRON, AGENT_HOST, canPickWorkspace } from "../chat/platform.ts";
 import { compactTokens, contextUsedTokens } from "../chat/usage.ts";
-import { useVoiceDictation, createDictationTranscriber, type VoiceTranscriber, type VoiceDictationError } from "@summersmile/voice-dictation";
 import { OperationPanelGlyph08, ChatPanelGlyph01, ChatPanelGlyph02, ChatPanelGlyph04, ChatPanelGlyph06, ChatPanelGlyph08, ChatPanelGlyph09, ChatPanelGlyph10, ChatPanelGlyph11, ChatPanelGlyph12, ChatPanelGlyph16, ChatPanelGlyph17, ChatPanelGlyph18, ChatPanelGlyph19, ChatPanelGlyph20, ChatPanelGlyph21, ChatPanelGlyph22, ChatPanelGlyph23, ChatPanelGlyph24, ChatPanelGlyph25, ChatPanelGlyph26, ChatPanelGlyph27, ChatPanelGlyph28, ChatPanelGlyph29, ChatPanelGlyph30, ChatPanelGlyph31, ChatPanelGlyph32, ChatPanelGlyph33, ChatPanelGlyph34, ChatPanelGlyph35 } from "../icons/PageIcons.tsx";
 import { useChatSession } from "../chatSession.tsx";
 

@@ -3,10 +3,9 @@
  *
  * 短时令牌（HMAC-SHA256 签名，默认 10 分钟有效）+ ASR 转写。
  * 前端录音前先取 token，再带 Bearer token 调 transcribe 接口。
- * 默认转写后端：BrandAgent / 小米 MiMo（见 transcription/xiaomi-mimo.ts）。
+ * 录音上传转写接口已停用，语音输入统一使用腾讯云实时语音识别。
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { transcribeWithXiaomiMimo } from "./transcription/xiaomi-mimo.js";
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
 
@@ -63,21 +62,15 @@ export function verifyVoiceToken(token: string | null | undefined) {
   }
 }
 
-// 按环境变量选择转写后端（默认小米 MiMo，经 BrandAgent 平台）。
+// 旧录音上传接口保留路由兼容性，但不再执行非实时 ASR。
 export async function transcribeVoice({
-  bytes,
-  mimeType,
-  fileName,
+  bytes: _bytes,
+  mimeType: _mimeType,
+  fileName: _fileName,
 }: {
   bytes: Buffer;
   mimeType: string;
   fileName: string;
-}) {
-  const provider = (process.env.AGENT_KIT_ASR_PROVIDER || process.env.HOTLINE_ASR_PROVIDER || "xiaomi")
-    .trim()
-    .toLowerCase();
-  if (provider === "tencent" || provider === "tencent-cloud") {
-    throw new Error("当前语音服务提供商未配置");
-  }
-  return transcribeWithXiaomiMimo({ bytes, mimeType, fileName });
+}): Promise<{ text: string; provider: "tencent-realtime" }> {
+  throw new Error("录音上传转写已停用，请使用腾讯云实时语音识别");
 }
